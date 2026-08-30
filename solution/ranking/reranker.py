@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from solution.catalog import normalize_text, tokens
 from solution.query_builder import BuiltQuery
 from solution.ranking.constraints import passes_hard_constraints
@@ -16,10 +18,24 @@ def _overlap(query: str, text: object) -> float:
 
 
 def rerank(
-    candidates: list[Candidate], products: dict[str, dict], query: BuiltQuery, state: SessionState
+    candidates: list[Candidate],
+    products: dict[str, dict],
+    query: BuiltQuery,
+    state: SessionState,
+    weights: dict[str, float] | None = None,
 ) -> list[Candidate]:
     if not candidates:
         return []
+    weights = weights or {
+        "rrf": 0.30,
+        "dense": 0.20,
+        "lexical": 0.22,
+        "exact": 0.12,
+        "category": 0.09,
+        "profile": 0.04,
+        "rating": 0.03,
+        "popularity": 0.0,
+    }
     max_rrf = max(item.score for item in candidates) or 1.0
     scored: list[Candidate] = []
     for candidate in candidates:
@@ -41,15 +57,16 @@ def rerank(
                 exact += 1.0
         exact = min(1.0, exact / max(1, len(state.hard_constraints) + len(state.soft_preferences)))
         rating = float(product.get("average_rating") or 0.0) / 5.0
+        popularity = min(1.0, math.log1p(float(product.get("rating_number") or 0.0)) / math.log1p(100_000.0))
         candidate.score = (
-            0.30 * (candidate.score / max_rrf)
-            + 0.20 * dense
-            + 0.22 * lexical
-            + 0.12 * exact
-            + 0.09 * category
-            + 0.04 * profile
-            + 0.03 * rating
+            weights["rrf"] * (candidate.score / max_rrf)
+            + weights["dense"] * dense
+            + weights["lexical"] * lexical
+            + weights["exact"] * exact
+            + weights["category"] * category
+            + weights["profile"] * profile
+            + weights["rating"] * rating
+            + weights.get("popularity", 0.0) * popularity
         )
         scored.append(candidate)
     return sorted(scored, key=lambda item: (-item.score, item.parent_asin))
-

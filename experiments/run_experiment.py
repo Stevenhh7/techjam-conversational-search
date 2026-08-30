@@ -24,6 +24,7 @@ from experiments.common import (
     write_failures_csv,
     write_json,
 )
+from experiments.frozen import frozen_role, verify_frozen_path
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,6 +37,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--notes")
     parser.add_argument("--run-dir", help="Optional explicit output directory")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--final-eval",
+        action="store_true",
+        help="Explicitly authorize one evaluation on a frozen holdout/public dataset",
+    )
     return parser.parse_args()
 
 
@@ -73,13 +79,33 @@ def main() -> None:
         raise SystemExit(f"catalog not found: {catalog_path}")
     if not dataset_path.is_file():
         raise SystemExit(f"dataset not found: {dataset_path}")
+    frozen_errors = verify_frozen_path(dataset_path)
+    if frozen_errors:
+        raise SystemExit("frozen dataset verification failed:\n- " + "\n- ".join(frozen_errors))
+    role = frozen_role(dataset_path)
+    if str(config.get("phase", "evaluation")) == "tuning" and role == "final_only" and not args.final_eval:
+        raise SystemExit("refusing tuning run on frozen holdout/public data; pass --final-eval for final validation")
 
     started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
     agent_class = load_agent(str(config["agent"]))
     samples = load_jsonl(dataset_path)
     catalog_ids, categories, products = catalog_index(catalog_path)
-    results = evaluate(agent_class(catalog_path), samples, catalog_ids, categories, products)
+    agent = agent_class(catalog_path)
+    try:
+        results = evaluate(agent, samples, catalog_ids, categories, products)
+        agent_status = {
+            "dense": {
+                "enabled": agent.dense.enabled,
+                "reason": agent.dense.reason,
+                "backend": getattr(agent.dense, "backend", None),
+            } if hasattr(agent, "dense") else None,
+            "cross_encoder": agent.cross_encoder.status() if hasattr(agent, "cross_encoder") else None,
+        }
+    finally:
+        close = getattr(agent, "close", None)
+        if callable(close):
+            close()
     elapsed_seconds = time.perf_counter() - started
     finished_at = datetime.now(timezone.utc)
 
@@ -91,11 +117,13 @@ def main() -> None:
         "dataset": relative_to_root(dataset_path),
         "dataset_sha256": sha256_file(dataset_path),
         "notes": config.get("notes", ""),
+        "phase": "final" if args.final_eval else config.get("phase", "evaluation"),
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),
         "elapsed_seconds": round(elapsed_seconds, 6),
         "python": sys.version,
         "platform": platform.platform(),
+        "agent_status": agent_status,
         "git": git_metadata(),
     }
     summary = {**metadata, "metrics": compact_metrics(results)}
@@ -120,4 +148,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

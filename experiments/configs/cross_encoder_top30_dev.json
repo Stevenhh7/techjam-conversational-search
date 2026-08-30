@@ -1,0 +1,8 @@
+{
+  "name": "cross_encoder_top30_dev",
+  "agent": "solution.ablations:CrossEncoderTop30Agent",
+  "catalog": "data/catalog.jsonl",
+  "dataset": "data/splits/dev.jsonl",
+  "phase": "tuning",
+  "notes": "Optional FlashRank cross-encoder on Top 30 with latency budget and off switch."
+}

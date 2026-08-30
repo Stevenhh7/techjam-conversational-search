@@ -1,0 +1,8 @@
+{
+  "name": "bge_dense_dev",
+  "agent": "solution.ablations:StrictBgeAgent",
+  "catalog": "data/catalog.jsonl",
+  "dataset": "data/splits/dev.jsonl",
+  "phase": "tuning",
+  "notes": "Strict same-split BGE ablation. Refuses incomplete/mismatched/fallback artifacts."
+}

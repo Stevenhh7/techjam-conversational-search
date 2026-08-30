@@ -3,5 +3,6 @@
   "agent": "solution.agent:Agent",
   "catalog": "data/catalog.jsonl",
   "dataset": "data/splits/dev.jsonl",
+  "phase": "tuning",
   "notes": "Steps 3-10: normalized catalog, weighted BM25, offline dense retrieval (hashing default; BGE optional), RRF, state, routing, grounded reranking, information-gain clarification"
 }

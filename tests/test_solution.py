@@ -10,8 +10,9 @@ from solution.agent import Agent
 from solution.clarification import choose_attribute
 from solution.intent import parse_turn
 from solution.retrieval.base import Candidate
-from solution.retrieval.fusion import reciprocal_rank_fusion
+from solution.retrieval.fusion import reciprocal_rank_fusion, supplement_with_dense
 from solution.retrieval.hashing import hashing_vector
+from solution.retrieval.dense import DenseRetriever
 from solution.schemas import SessionState
 from solution.state import update_state
 
@@ -38,6 +39,37 @@ class SolutionTests(unittest.TestCase):
         second = reciprocal_rank_fusion(routes, {"bm25": 1.2, "dense": 0.7})
         self.assertEqual([item.parent_asin for item in first], [item.parent_asin for item in second])
         self.assertEqual(first[0].parent_asin, "a")
+
+    def test_dense_supplement_does_not_boost_existing_sparse_candidate(self) -> None:
+        sparse = [Candidate("a", 0.5), Candidate("b", 0.25)]
+        dense = [Candidate("b", 0.99), Candidate("c", 0.90)]
+        result = supplement_with_dense(sparse, dense, weight=0.45, limit=2)
+        by_id = {item.parent_asin: item for item in result}
+        self.assertEqual(by_id["b"].score, 0.25)
+        self.assertEqual(by_id["b"].route_ranks["dense"], 1)
+        self.assertLessEqual(by_id["c"].score, by_id["b"].score)
+
+    def test_partial_dense_artifact_is_never_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            embeddings = root / "partial.npy"
+            metadata = root / "partial.meta.json"
+            embeddings.write_bytes(b"not-read-because-metadata-is-partial")
+            metadata.write_text(json.dumps({"complete_catalog": False}), encoding="utf-8")
+            retriever = DenseRetriever(embeddings, metadata, "unused", expected_count=2)
+            self.assertFalse(retriever.enabled)
+            self.assertIn("partial", retriever.reason)
+
+    def test_corrupt_dense_metadata_degrades_safely(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            embeddings = root / "broken.npy"
+            metadata = root / "broken.meta.json"
+            embeddings.write_bytes(b"broken")
+            metadata.write_text("{not-json", encoding="utf-8")
+            retriever = DenseRetriever(embeddings, metadata, "unused", expected_count=2)
+            self.assertFalse(retriever.enabled)
+            self.assertIn("unreadable", retriever.reason)
 
     def test_hashing_dense_vector_is_normalized_and_deterministic(self) -> None:
         first = hashing_vector("waterproof trail running shoes", 64)

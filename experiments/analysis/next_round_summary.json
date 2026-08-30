@@ -1,0 +1,55 @@
+{
+  "selection_policy": "Tune on frozen dev only; do not adjust weights from holdout/public results.",
+  "catalog_sha256": "da979b05a68af864cb0dcf9ee6a81c010c7e66a57978ad286c7a2e005fc69a67",
+  "runs": {
+    "legacy_hash_dense_dev": {
+      "dataset_sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+      "hit_rate_at_10": 0.88,
+      "mrr": 0.561011,
+      "mttc": 4.56,
+      "recommended_technical_score": 0.737103
+    },
+    "dense_supplement_dev": {
+      "dataset_sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+      "hit_rate_at_10": 0.88,
+      "mrr": 0.58378,
+      "mttc": 4.64,
+      "recommended_technical_score": 0.742334,
+      "elapsed_seconds": 170.081113
+    },
+    "cross_encoder_top30_dev": {
+      "dataset_sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+      "hit_rate_at_10": 0.88,
+      "mrr": 0.585672,
+      "mttc": 4.626667,
+      "recommended_technical_score": 0.743168,
+      "elapsed_seconds": 396.346597,
+      "decision": "not promoted: 2.33x elapsed for marginal gain"
+    },
+    "popularity_tiebreak_dev_selected": {
+      "dataset_sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+      "hit_rate_at_10": 0.906667,
+      "mrr": 0.593405,
+      "mttc": 4.453333,
+      "recommended_technical_score": 0.762288,
+      "elapsed_seconds_before_query_cache": 229.46627,
+      "decision": "selected as default based on dev"
+    },
+    "dense_supplement_holdout_observation_before_final_tiebreak": {
+      "dataset_sha256": "0e2982128d2b44922667cc3145fb28f44db947ab536887dc7b60eeb5ef630547",
+      "hit_rate_at_10": 0.88,
+      "mrr": 0.560571,
+      "mttc": 4.62,
+      "recommended_technical_score": 0.735771,
+      "note": "Observed before final dev-only tiebreak selection; not used to tune weights and not re-run."
+    }
+  },
+  "bge_smoke": {
+    "backend": "fastembed",
+    "model": "BAAI/bge-small-en-v1.5",
+    "rows": 1000,
+    "catalog_rows": 50000,
+    "complete_catalog": false,
+    "formal_metric": false
+  }
+}

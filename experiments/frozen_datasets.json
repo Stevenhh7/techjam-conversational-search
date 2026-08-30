@@ -1,0 +1,20 @@
+{
+  "dev": {
+    "path": "data/splits/dev.jsonl",
+    "sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+    "sample_count": 150,
+    "role": "tuning"
+  },
+  "holdout": {
+    "path": "data/splits/holdout.jsonl",
+    "sha256": "0e2982128d2b44922667cc3145fb28f44db947ab536887dc7b60eeb5ef630547",
+    "sample_count": 50,
+    "role": "final_only"
+  },
+  "public": {
+    "path": "data/public_set.jsonl",
+    "sha256": "571359a8a69014c43fc30d39c996c4a28e875dccc249dffc707358757beb16c0",
+    "sample_count": 200,
+    "role": "final_only"
+  }
+}

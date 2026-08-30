@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections import OrderedDict
 
 from solution.catalog import ProductDocument, tokens
 from solution.retrieval.base import Candidate
@@ -25,6 +26,8 @@ def query_terms(text: str, limit: int = 60) -> list[str]:
 
 class BM25Retriever:
     def __init__(self, documents: list[ProductDocument]) -> None:
+        self.cache: OrderedDict[tuple[str, int, tuple[float, ...]], tuple[tuple[str, float], ...]] = OrderedDict()
+        self.cache_limit = 1024
         self.connection = sqlite3.connect(":memory:")
         cursor = self.connection.cursor()
         cursor.execute(
@@ -51,12 +54,22 @@ class BM25Retriever:
         if not expression:
             return []
         weight_sql = ", ".join(str(value) for value in weights)
-        rows = self.connection.execute(
-            f"SELECT parent_asin, bm25(products, {weight_sql}) AS distance "
-            "FROM products WHERE products MATCH ? ORDER BY distance LIMIT ?",
-            (expression, limit),
-        ).fetchall()
-        return [Candidate(str(row[0]), 1.0 / rank, {"raw": float(row[1])}) for rank, row in enumerate(rows, 1)]
+        key = (expression, limit, weights)
+        cached = self.cache.get(key)
+        if cached is None:
+            rows = self.connection.execute(
+                f"SELECT parent_asin, bm25(products, {weight_sql}) AS distance "
+                "FROM products WHERE products MATCH ? ORDER BY distance LIMIT ?",
+                (expression, limit),
+            ).fetchall()
+            cached = tuple((str(row[0]), float(row[1])) for row in rows)
+            self.cache[key] = cached
+            self.cache.move_to_end(key)
+            if len(self.cache) > self.cache_limit:
+                self.cache.popitem(last=False)
+        else:
+            self.cache.move_to_end(key)
+        return [Candidate(parent_asin, 1.0 / rank, {"raw": distance}) for rank, (parent_asin, distance) in enumerate(cached, 1)]
 
     def search(self, query: str, limit: int) -> list[Candidate]:
         return self._search(query, limit, (0.0, 8.0, 5.0, 5.5, 4.0, 2.4, 1.0))
@@ -66,5 +79,6 @@ class BM25Retriever:
 
     def close(self) -> None:
         if self.connection is not None:
+            self.cache.clear()
             self.connection.close()
             self.connection = None

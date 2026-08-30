@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+from collections import OrderedDict
 from pathlib import Path
 
 from solution.retrieval.base import Candidate
@@ -11,10 +12,19 @@ from solution.retrieval.hashing import hashing_vector
 class DenseRetriever:
     """Optional BGE dense route. It degrades cleanly when artifacts/deps are absent."""
 
-    def __init__(self, embeddings_path: Path, metadata_path: Path, model_name: str, catalog_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        embeddings_path: Path,
+        metadata_path: Path,
+        model_name: str,
+        catalog_path: Path | None = None,
+        expected_count: int | None = None,
+    ) -> None:
         self.enabled = False
         self.reason = "dense artifact not built"
         self.model_name = model_name
+        self.cache: OrderedDict[tuple[str, int], tuple[tuple[str, float], ...]] = OrderedDict()
+        self.cache_limit = 512
         if not embeddings_path.is_file() or not metadata_path.is_file():
             return
         try:
@@ -22,7 +32,14 @@ class DenseRetriever:
         except ImportError:
             self.reason = "install numpy to enable dense retrieval"
             return
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            self.reason = "dense metadata is unreadable"
+            return
+        if metadata.get("complete_catalog") is False:
+            self.reason = "dense index is a partial smoke-test artifact"
+            return
         if catalog_path is not None and metadata.get("catalog_sha256"):
             digest = hashlib.sha256()
             with catalog_path.open("rb") as handle:
@@ -41,16 +58,30 @@ class DenseRetriever:
             except ImportError:
                 self.reason = "install fastembed to use the neural dense artifact"
                 return
-            self.encoder = TextEmbedding(model_name=model_name, providers=["CPUExecutionProvider"])
+            try:
+                self.encoder = TextEmbedding(model_name=model_name, providers=["CPUExecutionProvider"])
+            except Exception as exc:
+                self.reason = f"dense model initialization failed: {type(exc).__name__}"
+                return
         elif self.backend != "hashing":
             self.reason = f"unsupported dense backend: {self.backend}"
             return
         self.np = np
-        self.dimension = int(metadata.get("dimension", 384))
-        self.ids = [str(value) for value in metadata["parent_asins"]]
-        self.matrix = np.load(embeddings_path, mmap_mode="r")
+        try:
+            self.dimension = int(metadata.get("dimension", 384))
+            self.ids = [str(value) for value in metadata["parent_asins"]]
+            self.matrix = np.load(embeddings_path, mmap_mode="r")
+        except (KeyError, TypeError, ValueError, OSError):
+            self.reason = "dense artifact contents are invalid"
+            return
         if self.matrix.shape[0] != len(self.ids):
             self.reason = "dense index row count mismatch"
+            return
+        if expected_count is not None and len(self.ids) != expected_count:
+            self.reason = "dense index does not cover the full catalog"
+            return
+        if expected_count is not None and int(metadata.get("catalog_row_count", expected_count)) != expected_count:
+            self.reason = "dense metadata catalog row count mismatch"
             return
         self.enabled = True
         self.reason = "ready"
@@ -58,6 +89,11 @@ class DenseRetriever:
     def search(self, query: str, limit: int) -> list[Candidate]:
         if not self.enabled or not query.strip():
             return []
+        key = (query, limit)
+        cached = self.cache.get(key)
+        if cached is not None:
+            self.cache.move_to_end(key)
+            return [Candidate(parent_asin, score) for parent_asin, score in cached]
         if self.backend == "hashing":
             vector = hashing_vector(query, self.dimension)
         else:
@@ -66,4 +102,9 @@ class DenseRetriever:
         count = min(limit, len(self.ids))
         indices = self.np.argpartition(scores, -count)[-count:]
         indices = indices[self.np.argsort(scores[indices])[::-1]]
-        return [Candidate(self.ids[int(index)], float(scores[int(index)])) for index in indices]
+        cached = tuple((self.ids[int(index)], float(scores[int(index)])) for index in indices)
+        self.cache[key] = cached
+        self.cache.move_to_end(key)
+        if len(self.cache) > self.cache_limit:
+            self.cache.popitem(last=False)
+        return [Candidate(parent_asin, score) for parent_asin, score in cached]

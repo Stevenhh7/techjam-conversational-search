@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -24,43 +25,120 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def atomic_json(path: Path, payload: dict) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def encode_batch(backend: str, encoder: object, texts: list[str], dimension: int, batch_size: int) -> np.ndarray:
+    if backend == "fastembed":
+        values = list(encoder.passage_embed(texts, batch_size=batch_size))
+        matrix = np.asarray(values, dtype=np.float32)
+    else:
+        matrix = np.asarray([hashing_vector(text, dimension) for text in texts], dtype=np.float32)
+    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+    matrix /= np.maximum(norms, 1e-12)
+    return matrix.astype(np.float16)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build normalized BGE product embeddings")
+    parser = argparse.ArgumentParser(description="Build a resumable, normalized product embedding index")
     parser.add_argument("--catalog", default="data/catalog.jsonl")
     parser.add_argument("--backend", choices=("hashing", "fastembed"), default="hashing")
     parser.add_argument("--model", default="BAAI/bge-small-en-v1.5")
     parser.add_argument("--dimension", type=int, default=384)
-    parser.add_argument("--output", default="artifacts/product_embeddings.npy")
-    parser.add_argument("--metadata", default="artifacts/product_embeddings.meta.json")
-    parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--limit", type=int, help="Optional smoke-test row limit; omit for the full catalog")
+    parser.add_argument("--output", help="Defaults to a backend-specific artifact path")
+    parser.add_argument("--metadata", help="Defaults to a backend-specific artifact path")
+    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--checkpoint-every", type=int, default=1000)
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--limit", type=int, help="Smoke-test row limit; partial indexes are never enabled by Agent")
     args = parser.parse_args()
+    if args.batch_size <= 0 or args.checkpoint_every <= 0:
+        raise SystemExit("--batch-size and --checkpoint-every must be positive")
+    if args.limit is not None and args.limit <= 0:
+        raise SystemExit("--limit must be positive")
+
+    default_stem = "bge_product_embeddings" if args.backend == "fastembed" else "product_embeddings"
+    output = Path(args.output or f"artifacts/{default_stem}.npy")
+    metadata_path = Path(args.metadata or f"artifacts/{default_stem}.meta.json")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    building_path = output.with_suffix(output.suffix + ".building")
+    progress_path = metadata_path.with_suffix(metadata_path.suffix + ".progress.json")
+
     catalog_path = Path(args.catalog)
-    products = list(iter_catalog(catalog_path))
-    if args.limit:
-        products = products[:args.limit]
-    texts = [semantic_text(product) for product in products]
+    all_products = list(iter_catalog(catalog_path))
+    catalog_row_count = len(all_products)
+    products = all_products[: args.limit] if args.limit else all_products
+    digest = sha256(catalog_path)
+    total = len(products)
+    if not total:
+        raise SystemExit("catalog contains no products")
+
+    encoder: object = None
     if args.backend == "fastembed":
         from fastembed import TextEmbedding
 
         encoder = TextEmbedding(model_name=args.model, providers=["CPUExecutionProvider"])
-        matrix = np.asarray(list(encoder.passage_embed(texts, batch_size=args.batch_size)), dtype=np.float16)
-    else:
-        matrix = np.asarray([hashing_vector(text, args.dimension) for text in texts], dtype=np.float16)
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    np.save(output, matrix)
-    metadata = {
+
+    expected = {
         "backend": args.backend,
         "model": args.model if args.backend == "fastembed" else "signed-hashing-unigram-bigram-v1",
-        "dimension": int(matrix.shape[1]),
-        "shape": list(matrix.shape),
-        "dtype": str(matrix.dtype),
-        "catalog_sha256": sha256(catalog_path),
-        "catalog_row_count": len(products),
+        "catalog_sha256": digest,
+        "target_row_count": total,
+    }
+    start = 0
+    matrix: np.memmap | None = None
+    if args.resume and progress_path.is_file() and building_path.is_file():
+        progress = json.loads(progress_path.read_text(encoding="utf-8"))
+        if any(progress.get(key) != value for key, value in expected.items()):
+            raise SystemExit("resume checkpoint does not match backend/model/catalog/row count")
+        start = int(progress.get("completed_rows", 0))
+        matrix = np.lib.format.open_memmap(building_path, mode="r+")
+        if matrix.shape[0] != total:
+            raise SystemExit("resume matrix row count does not match checkpoint")
+
+    for offset in range(start, total, args.batch_size):
+        batch_products = products[offset : offset + args.batch_size]
+        batch = encode_batch(
+            args.backend,
+            encoder,
+            [semantic_text(product) for product in batch_products],
+            args.dimension,
+            args.batch_size,
+        )
+        if matrix is None:
+            matrix = np.lib.format.open_memmap(
+                building_path, mode="w+", dtype=np.float16, shape=(total, int(batch.shape[1]))
+            )
+        matrix[offset : offset + len(batch)] = batch
+        completed = offset + len(batch)
+        if completed == total or completed % args.checkpoint_every < len(batch):
+            matrix.flush()
+            atomic_json(progress_path, {**expected, "completed_rows": completed, "dimension": int(matrix.shape[1])})
+            print(json.dumps({"completed_rows": completed, "total_rows": total}), flush=True)
+
+    assert matrix is not None
+    matrix.flush()
+    dimension = int(matrix.shape[1])
+    del matrix
+    os.replace(building_path, output)
+    metadata = {
+        "backend": args.backend,
+        "model": expected["model"],
+        "dimension": dimension,
+        "shape": [total, dimension],
+        "dtype": "float16",
+        "catalog_sha256": digest,
+        "catalog_row_count": catalog_row_count,
+        "indexed_row_count": total,
+        "complete_catalog": total == catalog_row_count,
         "parent_asins": [str(product["parent_asin"]) for product in products],
     }
-    Path(args.metadata).write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    atomic_json(metadata_path, metadata)
+    progress_path.unlink(missing_ok=True)
     print(json.dumps({key: value for key, value in metadata.items() if key != "parent_asins"}, indent=2))
 
 
