@@ -20,6 +20,7 @@ class DenseRetriever:
         catalog_path: Path | None = None,
         expected_count: int | None = None,
         providers: tuple[str, ...] = ("CPUExecutionProvider",),
+        cache_dir: Path | None = None,
     ) -> None:
         self.enabled = False
         self.reason = "dense artifact not built"
@@ -74,7 +75,12 @@ class DenseRetriever:
                     self.reason = f"CUDA runtime preload failed: {type(exc).__name__}"
                     return
             try:
-                self.encoder = TextEmbedding(model_name=model_name, providers=list(providers))
+                self.encoder = TextEmbedding(
+                    model_name=model_name,
+                    providers=list(providers),
+                    cache_dir=str(cache_dir) if cache_dir is not None else None,
+                    local_files_only=True,
+                )
             except Exception as exc:
                 self.reason = f"dense model initialization failed: {type(exc).__name__}"
                 return
@@ -98,6 +104,11 @@ class DenseRetriever:
         if expected_count is not None and int(metadata.get("catalog_row_count", expected_count)) != expected_count:
             self.reason = "dense metadata catalog row count mismatch"
             return
+        # NumPy's CPU float16 matrix-vector path is substantially slower than
+        # its float32 BLAS path. Keep the compact on-disk artifact, but promote
+        # it once at startup for low-latency in-memory retrieval. The stored
+        # values are unchanged, so rankings remain identical.
+        self.search_matrix = np.asarray(self.matrix, dtype=np.float32)
         self.enabled = True
         self.reason = "ready"
 
@@ -113,7 +124,7 @@ class DenseRetriever:
             vector = hashing_vector(query, self.dimension)
         else:
             vector = next(iter(self.encoder.query_embed(query))).astype("float32")
-        scores = self.matrix @ vector
+        scores = self.search_matrix @ vector
         count = min(limit, len(self.ids))
         indices = self.np.argpartition(scores, -count)[-count:]
         indices = indices[self.np.argsort(scores[indices])[::-1]]

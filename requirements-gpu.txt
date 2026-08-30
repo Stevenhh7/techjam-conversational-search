@@ -1,2 +1,6 @@
 -r requirements-solution.txt
 onnxruntime-gpu[cuda,cudnn]==1.29.0
+
+# FastEmbed also declares the CPU ``onnxruntime`` distribution. On Windows the
+# two wheels share the same import path and CPU may overwrite CUDA. Use
+# ``scripts/setup_gpu_environment.ps1`` for a reproducible GPU installation.

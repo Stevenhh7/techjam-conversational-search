@@ -38,6 +38,8 @@ tests/test_organizer_pipeline.py
 /artifacts/*.progress.json
 /artifacts/fastembed_cache/
 /artifacts/flashrank_cache/
+/artifacts/pip_cache/
+/artifacts/tmp/
 
 # Python/editor caches.
 .pytest_cache/

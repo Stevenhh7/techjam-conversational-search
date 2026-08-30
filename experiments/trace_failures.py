@@ -18,7 +18,7 @@ from evaluator.local_evaluator import (
 from experiments.common import load_agent, resolve_path, write_json
 
 
-STAGES = ("bm25", "metadata", "dense", "sparse_fused", "fused", "final")
+STAGES = ("bm25", "category", "metadata", "dense", "sparse_fused", "fused", "final")
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,6 +105,7 @@ def main() -> None:
                 trace = agent.get_trace(session_id)[-1]
                 stage_values = {
                     "bm25": trace["routes"]["bm25"],
+                    "category": trace["routes"]["category"],
                     "metadata": trace["routes"]["metadata"],
                     "dense": trace["routes"]["dense"],
                     "sparse_fused": trace["sparse_fused"],
@@ -117,7 +118,15 @@ def main() -> None:
                     "user_message": user_message,
                     "ask_attribute": response.get("ask_attribute"),
                     "query": trace["query"],
+                    "routing": trace.get("routing", {}),
                     "state": trace["state"],
+                    "probe": trace.get("probe", {}),
+                    "over_generality": trace.get("over_generality", {}),
+                    "retrieval_cutoff": trace.get("retrieval_cutoff", False),
+                    "clarification": trace.get("clarification", {}),
+                    "applied_constraints": trace.get("applied_constraints", []),
+                    "relaxed_constraints": trace.get("relaxed_constraints", []),
+                    "diversity_applied": trace.get("diversity_applied", False),
                     "ranks": {stage: _rank(values, target) for stage, values in stage_values.items()},
                     "recommendations": [str(item["parent_asin"]) for item in response["recommendations"]],
                 })

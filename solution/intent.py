@@ -21,10 +21,16 @@ def _payload(message: str) -> str | None:
 
 def parse_turn(message: str, previous_intent: str = "browsing") -> ParsedTurn:
     lowered = message.lower()
-    override = "actually" in lowered and ("ignore" in lowered or "instead" in lowered)
+    override = (
+        ("actually" in lowered and ("ignore" in lowered or "instead" in lowered))
+        or "instead of" in lowered
+        or bool(re.search(r"\b(?:change|switch)\b.*?\bto\b", lowered))
+    )
     no_pref = re.search(r"no (?:additional )?preference for ([a-z_]+)", lowered)
     category_match = re.search(r"looking for (.*?)(?:[,.]|$)", message, re.I)
     category = category_match.group(1).strip() if category_match else None
+    if category and " instead of " in category.lower():
+        category = re.split(r"\s+instead of\s+", category, maxsplit=1, flags=re.I)[0].strip()
     buying_hits = sum(marker in lowered for marker in BUYING_MARKERS)
     browsing_hits = sum(marker in lowered for marker in BROWSING_MARKERS)
     if override:
@@ -45,6 +51,11 @@ def parse_turn(message: str, previous_intent: str = "browsing") -> ParsedTurn:
     if payload and not lowered.startswith("i don't have"):
         constraints = [part.strip(" .") for part in payload.split(";") if normalize_text(part)]
     exclusions = re.findall(r"\b(?:not|without|exclude)\s+([a-z0-9 -]{2,30})", lowered)
+    exclusions = [
+        value
+        for value in exclusions
+        if not value.startswith(("quite right", "sure", "an additional preference"))
+    ]
     return ParsedTurn(
         intent=intent,
         buying_probability=buying_probability,

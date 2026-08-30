@@ -47,6 +47,16 @@ def main() -> None:
     parser.add_argument("--catalog", default="data/catalog.jsonl")
     parser.add_argument("--backend", choices=("hashing", "fastembed"), default="hashing")
     parser.add_argument("--model", default="BAAI/bge-small-en-v1.5")
+    parser.add_argument(
+        "--cache-dir",
+        default="artifacts/fastembed_cache",
+        help="FastEmbed model cache; defaults to an E-drive project directory when the repository is on E:",
+    )
+    parser.add_argument(
+        "--local-files-only",
+        action="store_true",
+        help="Require an already populated model cache and make no network requests",
+    )
     parser.add_argument("--dimension", type=int, default=384)
     parser.add_argument("--output", help="Defaults to a backend-specific artifact path")
     parser.add_argument("--metadata", help="Defaults to a backend-specific artifact path")
@@ -66,6 +76,8 @@ def main() -> None:
     metadata_path = Path(args.metadata or f"artifacts/{default_stem}.meta.json")
     output.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_dir = Path(args.cache_dir).resolve()
+    cache_dir.mkdir(parents=True, exist_ok=True)
     building_path = output.with_suffix(output.suffix + ".building")
     progress_path = metadata_path.with_suffix(metadata_path.suffix + ".progress.json")
 
@@ -95,7 +107,12 @@ def main() -> None:
             selected_provider = "CPUExecutionProvider"
         if selected_provider == "CUDAExecutionProvider":
             ort.preload_dlls()
-        encoder = TextEmbedding(model_name=args.model, providers=[selected_provider])
+        encoder = TextEmbedding(
+            model_name=args.model,
+            providers=[selected_provider],
+            cache_dir=str(cache_dir),
+            local_files_only=args.local_files_only,
+        )
 
     expected = {
         "backend": args.backend,

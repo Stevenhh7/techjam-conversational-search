@@ -101,6 +101,7 @@ def main() -> None:
                 "backend": getattr(agent.dense, "backend", None),
             } if hasattr(agent, "dense") else None,
             "cross_encoder": agent.cross_encoder.status() if hasattr(agent, "cross_encoder") else None,
+            "semantic_ranker": agent.semantic_ranker.status() if hasattr(agent, "semantic_ranker") else None,
         }
     finally:
         close = getattr(agent, "close", None)

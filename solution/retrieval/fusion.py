@@ -9,12 +9,31 @@ def reciprocal_rank_fusion(
     fused: dict[str, Candidate] = {}
     for route, candidates in routes.items():
         weight = weights.get(route, 0.0)
+        if weight <= 0.0:
+            continue
         for rank, candidate in enumerate(candidates, 1):
             item = fused.setdefault(candidate.parent_asin, Candidate(candidate.parent_asin, 0.0))
             item.score += weight / (k + rank)
             item.route_ranks[route] = rank
             item.route_scores[route] = candidate.score
     return sorted(fused.values(), key=lambda item: (-item.score, item.parent_asin))
+
+
+def attach_route_evidence(
+    candidates: list[Candidate],
+    route_candidates: list[Candidate],
+    route: str,
+) -> list[Candidate]:
+    """Attach an audit route without changing recall membership or fused scores."""
+
+    by_id = {item.parent_asin: item for item in candidates}
+    for rank, evidence in enumerate(route_candidates, 1):
+        item = by_id.get(evidence.parent_asin)
+        if item is None:
+            continue
+        item.route_ranks[route] = rank
+        item.route_scores[route] = evidence.score
+    return candidates
 
 
 def supplement_with_dense(
