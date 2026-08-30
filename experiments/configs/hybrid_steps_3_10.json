@@ -1,0 +1,7 @@
+{
+  "name": "hybrid_steps_3_10",
+  "agent": "solution.agent:Agent",
+  "catalog": "data/catalog.jsonl",
+  "dataset": "data/splits/dev.jsonl",
+  "notes": "Steps 3-10: normalized catalog, weighted BM25, offline dense retrieval (hashing default; BGE optional), RRF, state, routing, grounded reranking, information-gain clarification"
+}

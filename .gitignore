@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+results.json
+
+# Official catalog and downloaded release assets are reproducible local inputs.
+data/catalog.jsonl
+/catalog.jsonl.gz
+/SHA256SUMS
+/data/releases/
+
+# Generated evaluation and dense-index artifacts.
+/data/splits/*.jsonl
+/data/splits/manifest.json
+/experiments/runs/*
+!/experiments/runs/.gitkeep
+/experiments/registry.jsonl
+/artifacts/product_embeddings.npy
+/artifacts/product_embeddings.meta.json
+/artifacts/fastembed_cache/
+
+# Document-editing outputs are intentionally outside this agent-code repository.
+/output/
+/.docx_qa/
