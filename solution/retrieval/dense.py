@@ -19,6 +19,7 @@ class DenseRetriever:
         model_name: str,
         catalog_path: Path | None = None,
         expected_count: int | None = None,
+        providers: tuple[str, ...] = ("CPUExecutionProvider",),
     ) -> None:
         self.enabled = False
         self.reason = "dense artifact not built"
@@ -58,8 +59,22 @@ class DenseRetriever:
             except ImportError:
                 self.reason = "install fastembed to use the neural dense artifact"
                 return
+            if "CUDAExecutionProvider" in providers:
+                try:
+                    import onnxruntime as ort
+                except ImportError:
+                    self.reason = "install onnxruntime-gpu to use CUDA dense inference"
+                    return
+                if "CUDAExecutionProvider" not in ort.get_available_providers():
+                    self.reason = "CUDAExecutionProvider is unavailable"
+                    return
+                try:
+                    ort.preload_dlls()
+                except Exception as exc:
+                    self.reason = f"CUDA runtime preload failed: {type(exc).__name__}"
+                    return
             try:
-                self.encoder = TextEmbedding(model_name=model_name, providers=["CPUExecutionProvider"])
+                self.encoder = TextEmbedding(model_name=model_name, providers=list(providers))
             except Exception as exc:
                 self.reason = f"dense model initialization failed: {type(exc).__name__}"
                 return

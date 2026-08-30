@@ -14,6 +14,7 @@ class SolutionConfig:
     dense_supplement_weight: float = 0.45
     rrf_k: int = 60
     dense_model: str = "BAAI/bge-small-en-v1.5"
+    dense_providers: tuple[str, ...] = ("CPUExecutionProvider",)
     dense_embeddings_path: Path = Path("artifacts/product_embeddings.npy")
     dense_metadata_path: Path = Path("artifacts/product_embeddings.meta.json")
     ask_until_turn: int = 7

@@ -16,5 +16,12 @@
     "sha256": "571359a8a69014c43fc30d39c996c4a28e875dccc249dffc707358757beb16c0",
     "sample_count": 200,
     "role": "final_only"
+  },
+  "bge_sealed_final": {
+    "path": "data/splits/final_bge_200.jsonl",
+    "sha256": "993bed4bd40ce400a6158094d81cb14ea57561a6c4ba5f1aa56dac9115524d8c",
+    "sample_count": 200,
+    "role": "final_only",
+    "optional_generated": true
   }
 }

@@ -44,6 +44,7 @@ class Agent:
             self.config.dense_model,
             self.catalog_path,
             expected_count=len(self.documents),
+            providers=self.config.dense_providers,
         )
         self.cross_encoder = OptionalCrossEncoder(
             self.config.cross_encoder_enabled,

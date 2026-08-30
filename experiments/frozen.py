@@ -18,6 +18,8 @@ def verify_manifest() -> list[str]:
     for name, entry in load_manifest().items():
         path = ROOT / entry["path"]
         if not path.is_file():
+            if entry.get("optional_generated"):
+                continue
             errors.append(f"{name}: missing {path}")
             continue
         actual_hash = sha256_file(path)

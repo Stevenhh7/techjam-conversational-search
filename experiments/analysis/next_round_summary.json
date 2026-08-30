@@ -42,14 +42,42 @@
       "mttc": 4.62,
       "recommended_technical_score": 0.735771,
       "note": "Observed before final dev-only tiebreak selection; not used to tune weights and not re-run."
+    },
+    "hashing_paired_dev": {
+      "dataset_sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+      "hit_rate_at_10": 0.906667,
+      "mrr": 0.593405,
+      "mttc": 4.453333,
+      "recommended_technical_score": 0.762288,
+      "elapsed_seconds": 139.352229
+    },
+    "bge_gpu_50k_dev_selected": {
+      "dataset_sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+      "hit_rate_at_10": 0.92,
+      "mrr": 0.616587,
+      "mttc": 4.353333,
+      "recommended_technical_score": 0.777909,
+      "elapsed_seconds": 137.163068,
+      "decision": "selected on dev: HR and MRR improved, paired elapsed acceptable"
+    },
+    "bge_gpu_50k_sealed_final": {
+      "dataset_sha256": "993bed4bd40ce400a6158094d81cb14ea57561a6c4ba5f1aa56dac9115524d8c",
+      "status": "interrupted_by_user_before_completion",
+      "metrics_valid": false,
+      "rerun_count": 0,
+      "note": "No result file was produced; preserve as a still-sealed next-step task."
     }
   },
-  "bge_smoke": {
+  "bge_artifact": {
     "backend": "fastembed",
     "model": "BAAI/bge-small-en-v1.5",
-    "rows": 1000,
+    "rows": 50000,
     "catalog_rows": 50000,
-    "complete_catalog": false,
-    "formal_metric": false
+    "dimension": 384,
+    "dtype": "float16",
+    "complete_catalog": true,
+    "build_provider": "CUDAExecutionProvider",
+    "artifact_sha256": "7f3bd95ecb598191969893c0682305346cb8776dcd012416efaa367aaee7f49a",
+    "metadata_sha256": "42bcc26659cf3b2fa8d96a9072acb75ce1ef717fb21ffbafd905c36f88723686"
   }
 }

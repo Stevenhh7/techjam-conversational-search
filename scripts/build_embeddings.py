@@ -51,6 +51,7 @@ def main() -> None:
     parser.add_argument("--output", help="Defaults to a backend-specific artifact path")
     parser.add_argument("--metadata", help="Defaults to a backend-specific artifact path")
     parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--provider", choices=("cpu", "cuda", "auto"), default="auto")
     parser.add_argument("--checkpoint-every", type=int, default=1000)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--limit", type=int, help="Smoke-test row limit; partial indexes are never enabled by Agent")
@@ -78,16 +79,30 @@ def main() -> None:
         raise SystemExit("catalog contains no products")
 
     encoder: object = None
+    selected_provider = "signed-hashing"
     if args.backend == "fastembed":
         from fastembed import TextEmbedding
+        import onnxruntime as ort
 
-        encoder = TextEmbedding(model_name=args.model, providers=["CPUExecutionProvider"])
+        available = ort.get_available_providers()
+        if args.provider == "cuda":
+            if "CUDAExecutionProvider" not in available:
+                raise SystemExit("CUDAExecutionProvider requested but unavailable; install requirements-gpu.txt")
+            selected_provider = "CUDAExecutionProvider"
+        elif args.provider == "auto" and "CUDAExecutionProvider" in available:
+            selected_provider = "CUDAExecutionProvider"
+        else:
+            selected_provider = "CPUExecutionProvider"
+        if selected_provider == "CUDAExecutionProvider":
+            ort.preload_dlls()
+        encoder = TextEmbedding(model_name=args.model, providers=[selected_provider])
 
     expected = {
         "backend": args.backend,
         "model": args.model if args.backend == "fastembed" else "signed-hashing-unigram-bigram-v1",
         "catalog_sha256": digest,
         "target_row_count": total,
+        "provider": selected_provider,
     }
     start = 0
     matrix: np.memmap | None = None
@@ -135,6 +150,7 @@ def main() -> None:
         "catalog_row_count": catalog_row_count,
         "indexed_row_count": total,
         "complete_catalog": total == catalog_row_count,
+        "build_provider": selected_provider,
         "parent_asins": [str(product["parent_asin"]) for product in products],
     }
     atomic_json(metadata_path, metadata)

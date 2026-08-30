@@ -1,0 +1,19 @@
+{
+  "dataset": "data/splits/final_bge_200.jsonl",
+  "dataset_sha256": "993bed4bd40ce400a6158094d81cb14ea57561a6c4ba5f1aa56dac9115524d8c",
+  "catalog": "data/catalog.jsonl",
+  "catalog_sha256": "da979b05a68af864cb0dcf9ee6a81c010c7e66a57978ad286c7a2e005fc69a67",
+  "excluded_dataset": "data/public_set.jsonl",
+  "excluded_dataset_sha256": "571359a8a69014c43fc30d39c996c4a28e875dccc249dffc707358757beb16c0",
+  "seed": "techjam-2026-bge-final-v1",
+  "sample_count": 200,
+  "scenario_counts": {
+    "boundary": 10,
+    "browsing": 80,
+    "buying": 80,
+    "intent_override": 30
+  },
+  "target_overlap_with_excluded": 0,
+  "intent_cards_materialized": false,
+  "warning": "Synthetic catalog-target evaluation; not a substitute for the organizer private set."
+}

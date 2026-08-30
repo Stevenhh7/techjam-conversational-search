@@ -43,6 +43,7 @@ class StrictBgeAgent(Agent):
         config = SolutionConfig(
             dense_embeddings_path=Path("artifacts/bge_product_embeddings.npy"),
             dense_metadata_path=Path("artifacts/bge_product_embeddings.meta.json"),
+            dense_providers=("CUDAExecutionProvider",),
         )
         super().__init__(catalog_path, config=config, diagnostics=diagnostics)
         if not self.dense.enabled or getattr(self.dense, "backend", None) != "fastembed":
