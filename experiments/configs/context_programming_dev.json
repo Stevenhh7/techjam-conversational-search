@@ -1,0 +1,8 @@
+{
+  "name": "context_programming_dev",
+  "agent": "solution.agent:Agent",
+  "catalog": "data/catalog.jsonl",
+  "dataset": "data/splits/dev.jsonl",
+  "phase": "tuning",
+  "notes": "Default Hashing Dense agent after bounded context distillation, privacy-safe profile memory, adaptive context programs, and strategy outcome feedback. Qwen and cross-encoder remain disabled."
+}

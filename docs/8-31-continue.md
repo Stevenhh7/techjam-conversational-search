@@ -1,5 +1,7 @@
 # 8-31 后续工作汇总与实施计划
 
+> 历史计划说明：本文第 4–7 节记录实施前的差距和设计。Personalized Context Distillation、内存 Profile Store、Adaptive Context Program、Strategy Outcome 闭环及当前主链 Qwen 完整配对现已实施；最新状态以 `docs/DYNAMIC_CONTEXT_PROGRAMMING_ZH.md` 和 `docs/COMPETITION_REQUIREMENTS_STATUS_ZH.md` 为准。当前测试基线为 49/49。
+
 ## 1. 文档目的
 
 本文综合以下三份阶段报告及第三阶段 Self-Evolution 代码审计结果，统一说明项目当前状态、剩余差距、后续实施顺序、测试门槛和暂不应执行的事项。

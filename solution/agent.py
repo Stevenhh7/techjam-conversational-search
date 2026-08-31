@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 from pathlib import Path
 
 from solution.catalog import load_documents
 from solution.clarification import ALLOWED_ATTRIBUTES, choose_clarification
 from solution.config import SolutionConfig
+from solution.context.distiller import ContextDistiller
+from solution.context.policies import profile_mutations, user_rejected
+from solution.context.profile_store import InMemoryProfileStore, ProfileStore
+from solution.context.schemas import LongTermProfile
 from solution.generality import assess_over_generality
 from solution.llm.base import SemanticRankResult, SemanticRanker
 from solution.llm.factory import create_semantic_ranker
+from solution.orchestration import AdaptiveOrchestrator, StrategyOutcome, apply_novelty_penalty
 from solution.pipeline import HybridPipeline
 from solution.query_builder import build_query
 from solution.ranking.cross_encoder import OptionalCrossEncoder
@@ -31,6 +37,7 @@ class Agent:
         config: SolutionConfig | None = None,
         diagnostics: bool = False,
         semantic_ranker: SemanticRanker | None = None,
+        profile_store: ProfileStore | None = None,
     ) -> None:
         self.catalog_path = Path(catalog_path)
         self.config = config or SolutionConfig()
@@ -66,7 +73,20 @@ class Agent:
             self.config.cross_encoder_weight,
             self.config.cross_encoder_latency_budget_ms,
         )
+        self.semantic_ranker_explicit = semantic_ranker is not None
         self.semantic_ranker = semantic_ranker or create_semantic_ranker(self.config)
+        self.profile_store = profile_store or InMemoryProfileStore(
+            self.config.profile_promotion_sessions,
+            self.config.profile_confidence_decay,
+        )
+        self.context_distiller = ContextDistiller(
+            self.config.context_max_messages,
+            self.config.context_max_candidates,
+            self.config.context_max_preferences,
+            self.config.context_max_summary_chars,
+            self.config.context_max_outcomes,
+        )
+        self.orchestrator = AdaptiveOrchestrator(self.config)
         self.pipeline = HybridPipeline(
             self.bm25,
             self.category,
@@ -76,13 +96,23 @@ class Agent:
         )
         self.sessions: dict[str, SessionState] = {}
         self.response_cache: dict[str, dict[int, tuple[str, int, dict]]] = {}
+        self.profile_snapshots: dict[str, LongTermProfile] = {}
         self.popular = sorted(
             self.documents,
             key=lambda doc: (-(doc.raw.get("rating_number") or 0), doc.parent_asin),
         )
 
     def reset(self, session_id: str, user_profile: dict) -> None:
-        self.sessions[session_id] = SessionState(session_id=session_id, user_profile=user_profile or {})
+        supplied = dict(user_profile or {})
+        profile_id = str(supplied.get("profile_id", "")).strip()[:128] or None
+        self.sessions[session_id] = SessionState(
+            session_id=session_id,
+            user_profile=supplied,
+            profile_id=profile_id,
+        )
+        self.profile_snapshots[session_id] = (
+            self.profile_store.load(profile_id) if profile_id else LongTermProfile("")
+        )
         self.response_cache[session_id] = {}
         if self.diagnostics:
             self.traces[session_id] = []
@@ -96,9 +126,42 @@ class Agent:
             if cached_message != user_message or cached_top_k != top_k:
                 raise RuntimeError("the same turn cannot be replayed with different input")
             return copy.deepcopy(cached_response)
-        state = update_state(self.sessions[session_id], user_message, turn)
+        state = self.sessions[session_id]
+        previous_ids = tuple(state.previous_recommendations)
+        previous_pending = state.pending_clarification
+        previous_slots = {
+            (item.attribute, item.value) for item in state.structured_constraints
+        }
+        state = update_state(state, user_message, turn)
+        rejected = user_rejected(user_message)
+        if rejected:
+            for parent_asin in previous_ids:
+                if parent_asin not in state.rejected_recommendations:
+                    state.rejected_recommendations.append(parent_asin)
+        if state.profile_id:
+            mutations = profile_mutations(state, user_message)
+            if mutations:
+                self.profile_snapshots[session_id] = self.profile_store.update(
+                    state.profile_id,
+                    mutations,
+                )
+        profile = self.profile_snapshots.get(session_id, LongTermProfile(""))
+        context = self.context_distiller.distill(state, profile)
+        state.distilled_context = context
         query = build_query(state)
-        routing = route_intent(state, self.config)
+        base_routing = route_intent(state, self.config)
+        program = self.orchestrator.pre_retrieval(context, base_routing)
+        if (
+            self.semantic_ranker_explicit
+            and context.consecutive_llm_failures
+            < self.config.semantic_ranker_circuit_breaker_failures
+        ):
+            program = replace(
+                program,
+                semantic_ranker_enabled=True,
+                reasons=tuple((*program.reasons, "explicit_ranker_enabled")),
+            )
+        routing = program.routing(base_routing)
         state.last_routing = routing
         probe = self.pipeline.probe(query, routing)
         generality = assess_over_generality(
@@ -109,6 +172,17 @@ class Agent:
             self.config,
         )
         state.over_generality = generality
+        program = self.orchestrator.post_probe(
+            program,
+            probe.unique_candidate_count,
+            probe.saturated_routes,
+            generality.overloaded,
+        )
+        routing = program.routing(base_routing)
+        state.last_routing = routing
+        state.context_program = program
+        reranker_weights = dict(self.config.reranker_weights)
+        reranker_weights["profile"] = program.profile_weight
         blocked = state.asked_attributes | state.unavailable_attributes
         if state.category:
             blocked.add("category")
@@ -120,7 +194,14 @@ class Agent:
         )
         if cutoff:
             transition_state(state, "overloaded", turn, "over_generality_cutoff")
-            pipeline_result = self.pipeline.provisional(query, state, routing, probe)
+            pipeline_result = self.pipeline.provisional(
+                query,
+                state,
+                routing,
+                probe,
+                reranker_weights,
+                program.diversity_strength,
+            )
             ranked = pipeline_result.ranked
             semantic_result = SemanticRankResult(
                 ordered_parent_asins=tuple(item.parent_asin for item in ranked),
@@ -129,20 +210,39 @@ class Agent:
             )
         else:
             transition_state(state, "ready", turn, "full_retrieval_authorized")
-            pipeline_result = self.pipeline.run(query, state, routing, probe)
+            pipeline_result = self.pipeline.run(
+                query,
+                state,
+                routing,
+                probe,
+                reranker_weights,
+                program.diversity_strength,
+            )
             ranked = self.cross_encoder.rerank(
                 pipeline_result.ranked,
                 query.semantic,
                 self.products,
             )
-            ranked, semantic_result = semantic_rerank(
+            if program.semantic_ranker_enabled:
+                ranked, semantic_result = semantic_rerank(
+                    ranked,
+                    self.products,
+                    query.semantic,
+                    state,
+                    routing,
+                    self.semantic_ranker,
+                    program.semantic_ranker_top_n,
+                )
+            else:
+                semantic_result = SemanticRankResult(
+                    ordered_parent_asins=tuple(item.parent_asin for item in ranked),
+                    applied=False,
+                    reason="context_program_disabled",
+                )
+            ranked = apply_novelty_penalty(
                 ranked,
-                self.products,
-                query.semantic,
-                state,
-                routing,
-                self.semantic_ranker,
-                self.config.semantic_ranker_top_n,
+                previous_ids,
+                program.novelty_penalty,
             )
         ranked_ids = [item.parent_asin for item in ranked]
         if len(ranked_ids) < top_k:
@@ -179,6 +279,56 @@ class Agent:
                 "proactive_overload_guidance" if cutoff else "candidate_information_gain",
             )
         state.pending_clarification = clarification
+        current_slots = {(item.attribute, item.value) for item in state.structured_constraints}
+        clarification_answered = bool(
+            previous_pending
+            and previous_pending.attribute
+            and (
+                previous_pending.attribute in state.slot_store
+                or previous_pending.attribute in state.unavailable_attributes
+                or (previous_pending.attribute == "category" and state.category)
+            )
+        )
+        repeated = len(set(previous_ids) & set(recommendations))
+        repeat_rate = repeated / max(1, len(recommendations)) if previous_ids else 0.0
+        semantic_status = self.semantic_ranker.status()
+        semantic_expected = program.semantic_ranker_enabled and not cutoff
+        llm_failure = bool(
+            semantic_expected
+            and not semantic_result.applied
+            and semantic_result.reason not in {"no candidates", "ollama_qwen_no_candidates"}
+        )
+        outcome = StrategyOutcome(
+            turn=turn,
+            context_revision=context.context_revision,
+            program_track=program.track,
+            candidate_counts=tuple(
+                sorted((name, len(values)) for name, values in pipeline_result.routes.items())
+            ),
+            unique_candidate_count=probe.unique_candidate_count,
+            candidate_reduction=(
+                state.strategy_outcomes[-1].unique_candidate_count - probe.unique_candidate_count
+                if state.strategy_outcomes
+                else None
+            ),
+            applied_constraints=pipeline_result.applied_constraints,
+            relaxed_constraints=pipeline_result.relaxed_constraints,
+            recommendation_repeat_rate=round(repeat_rate, 6),
+            clarification_attribute=attribute,
+            clarification_answered=clarification_answered,
+            slot_acquired=bool(current_slots - previous_slots),
+            user_rejection=rejected,
+            override_detected=state.last_override_turn == turn,
+            llm_latency_ms=(
+                float(semantic_status["last_latency_ms"])
+                if semantic_expected and semantic_status.get("last_latency_ms") is not None
+                else None
+            ),
+            llm_failure=llm_failure,
+            fallback_used=bool(llm_failure or pipeline_result.relaxed_constraints),
+        )
+        state.strategy_outcomes.append(outcome)
+        state.strategy_outcomes = state.strategy_outcomes[-max(4, self.config.context_max_outcomes * 2):]
         state.previous_recommendations = recommendations
         if self.diagnostics:
             self.traces[session_id].append(
@@ -223,6 +373,47 @@ class Agent:
                         "dialogue_phase": state.dialogue_phase,
                         "state_revision": state.state_revision,
                     },
+                    "distilled_context": {
+                        "core_goal": context.core_goal,
+                        "intent": context.intent,
+                        "confirmed_preferences": [
+                            f"{item.attribute}:{item.value}" for item in context.confirmed_preferences
+                        ],
+                        "tentative_preferences": [
+                            f"{item.attribute}:{item.value}" for item in context.tentative_preferences
+                        ],
+                        "negative_preferences": [item.value for item in context.negative_preferences],
+                        "long_term_preferences": [
+                            f"{item.attribute}:{item.value}" for item in context.long_term_preferences
+                        ],
+                        "profile_conflict_attributes": list(context.profile_conflict_attributes),
+                        "no_progress_turns": context.no_progress_turns,
+                        "consecutive_llm_failures": context.consecutive_llm_failures,
+                        "summary": context.summary,
+                        "context_revision": context.context_revision,
+                    },
+                    "context_program": {
+                        "track": program.track,
+                        "active_routes": list(program.active_routes),
+                        "route_limits": {
+                            "bm25": program.keyword_limit,
+                            "category": program.category_limit,
+                            "metadata": program.metadata_limit,
+                            "dense": program.dense_limit,
+                        },
+                        "hard_filtering": program.hard_filtering,
+                        "dense_mode": program.dense_mode,
+                        "diversity_enabled": program.diversity_enabled,
+                        "diversity_strength": program.diversity_strength,
+                        "profile_weight": program.profile_weight,
+                        "semantic_ranker_enabled": program.semantic_ranker_enabled,
+                        "semantic_ranker_top_n": program.semantic_ranker_top_n,
+                        "clarification_mode": program.clarification_mode,
+                        "novelty_penalty": program.novelty_penalty,
+                        "fallback_policy": program.fallback_policy,
+                        "context_revision": program.context_revision,
+                        "reasons": list(program.reasons),
+                    },
                     "probe": {
                         "unique_candidate_count": probe.unique_candidate_count,
                         "saturated_routes": list(probe.saturated_routes),
@@ -259,6 +450,19 @@ class Agent:
                         **self.semantic_ranker.status(),
                         "applied": semantic_result.applied,
                         "reason": semantic_result.reason,
+                    },
+                    "strategy_outcome": {
+                        "candidate_counts": dict(outcome.candidate_counts),
+                        "unique_candidate_count": outcome.unique_candidate_count,
+                        "candidate_reduction": outcome.candidate_reduction,
+                        "recommendation_repeat_rate": outcome.recommendation_repeat_rate,
+                        "clarification_answered": outcome.clarification_answered,
+                        "slot_acquired": outcome.slot_acquired,
+                        "user_rejection": outcome.user_rejection,
+                        "override_detected": outcome.override_detected,
+                        "llm_latency_ms": outcome.llm_latency_ms,
+                        "llm_failure": outcome.llm_failure,
+                        "fallback_used": outcome.fallback_used,
                     },
                 }
             )

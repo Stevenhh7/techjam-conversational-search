@@ -1,0 +1,71 @@
+{
+  "status": "completed",
+  "decision": "do_not_enable_by_default",
+  "baseline_run": "experiments/runs/context_programming_dev",
+  "candidate_run": "experiments/runs/qwen_context_dev",
+  "candidate_results_sha256": "95463f74d33cfdcebf86f36fd68cc6911d8e6e9e33f05e539c6bdd3227d9c0c5",
+  "dataset_sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+  "catalog_sha256": "da979b05a68af864cb0dcf9ee6a81c010c7e66a57978ad286c7a2e005fc69a67",
+  "sample_count": 150,
+  "baseline": {
+    "hit_rate_at_10": 0.92,
+    "mrr": 0.607254,
+    "mttc": 4.36,
+    "efficiency": 0.664,
+    "recommended_technical_score": 0.774976,
+    "elapsed_seconds": 196.131761
+  },
+  "candidate": {
+    "hit_rate_at_10": 0.92,
+    "mrr": 0.620931,
+    "mttc": 4.38,
+    "efficiency": 0.662,
+    "recommended_technical_score": 0.778679,
+    "elapsed_seconds": 4800.698731
+  },
+  "delta": {
+    "hit_rate_at_10": 0.0,
+    "mrr": 0.013677,
+    "mttc": 0.02,
+    "efficiency": -0.002,
+    "recommended_technical_score": 0.003703,
+    "elapsed_multiplier": 24.476906
+  },
+  "paired_sessions": {
+    "reciprocal_rank_improved": 6,
+    "reciprocal_rank_degraded": 2,
+    "reciprocal_rank_unchanged": 142,
+    "hit_gained": 0,
+    "hit_lost": 0,
+    "turn_faster": 0,
+    "turn_slower": 2,
+    "turn_unchanged": 148
+  },
+  "ollama": {
+    "model": "qwen3.5:9b",
+    "top_n": 30,
+    "request_count": 623,
+    "success_count": 546,
+    "fallback_count": 77,
+    "success_rate": 0.8764044944,
+    "fallback_rate": 0.1235955056,
+    "error_counts": {
+      "invalid_candidate_permutation": 77
+    },
+    "mean_latency_ms": 7399.743571,
+    "p50_latency_ms": 7769.4963,
+    "p95_latency_ms": 8280.9507,
+    "reported_prompt_tokens": 1737271,
+    "reported_completion_tokens": 212169,
+    "reported_total_tokens": 1949440,
+    "session_circuit_breaker_failures": 2
+  },
+  "gate": {
+    "hit_rate_improved": false,
+    "mrr_improved": true,
+    "mttc_not_regressed": false,
+    "latency_acceptable": false,
+    "passed": false
+  },
+  "holdout_or_final_executed": false
+}

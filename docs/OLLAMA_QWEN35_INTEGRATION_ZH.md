@@ -70,3 +70,48 @@ config = SolutionConfig(
 5. 验证过泛首轮仍为 `over_generality_cutoff`，用户补充槽位后的下一轮才调用 Ollama。
 
 当前自动测试使用模拟 Ollama 响应，不需要下载模型；真实模型质量与性能必须在部署机器上完成最终复验。
+
+## 本机真实模型冒烟测试
+
+仓库提供独立测试入口。它会先检查本地模型标签，然后运行一个 Buying、一个 Browsing 和一个 Over-General 会话：前两项必须真实调用 Qwen，第三项必须在主动澄清截断处跳过 LLM。所有推荐 ID 都会再次验证为当前只读 catalog 的成员，结果可保存为 JSON。
+
+```powershell
+python scripts/test_ollama_integration.py `
+  --catalog data/catalog.jsonl `
+  --output experiments/runs/ollama_qwen35_live_smoke.json
+```
+
+如果 catalog 位于其他本地目录，可通过 `--catalog` 传入绝对路径。该测试只覆盖连接、结构化输出、安全边界、回退路径和延迟记录，不替代冻结 dev 的准确率配对评测。
+
+冻结 dev 的完整配对实验入口为：
+
+```powershell
+python -m experiments.run_experiment `
+  --config experiments/configs/qwen_hashing_dev.json `
+  --name qwen_hashing_dev
+```
+
+该实验必须与同一 commit、同一 catalog、同一 dev split 的 LLM 关闭版本比较；不得读取 holdout 调权。
+
+## 2026-08-31 本机验收结果
+
+- 环境：Ollama `0.33.2`，模型 `qwen3.5:9b`，RTX 5070 Ti Laptop 12 GB；Ollama 报告模型约占 5.7 GB、100% GPU，检索侧使用 Hashing Dense 50K catalog。
+- Buying：`applied=true`，Prompt 2815 tokens，Completion 387 tokens，模型调用约 6.67 秒。
+- Browsing：`applied=true`，Prompt 2990 tokens，Completion 385 tokens，模型调用约 6.27 秒。
+- Over-General：`retrieval_cutoff=true`，Ollama 请求增量为 0，usage 为 0，原因是 `over_generality_cutoff`。
+- 三个会话总耗时约 46.25 秒，推荐均为 10 个不重复 catalog ID；未发现新增、未知或重复 ASIN。
+
+以上是连接与安全边界的冒烟验收，不是准确率结论。默认权重和 `semantic_ranker_enabled=false` 保持不变，未读取 holdout，也未执行 final split。
+
+## Dynamic Context Programming 合并后的最终 dev150 结果
+
+当前主链已重新进行严格配对，不能与上面的早期 Hashing 报告混用：
+
+- Context-only：HR@10 0.920000、MRR 0.607254、MTTC 4.360000、196.13 秒；
+- Context + Qwen：HR@10 0.920000、MRR 0.620931、MTTC 4.380000、4,800.70 秒；
+- 623 次请求中 546 次成功，77 次 `invalid_candidate_permutation` 安全回退；
+- 成功率 87.64%，回退率 12.36%；平均 7.40 秒、P50 7.77 秒、P95 8.28 秒；
+- HR 未改善、MTTC 轻微退化、耗时约 24.48 倍，默认启用门槛未通过；
+- `semantic_ranker_enabled=false` 保持不变，未运行 holdout/final。
+
+当前报告见 `docs/QWEN35_CONTEXT_DEV_ABLATION_ZH.md`。冒烟工具现在会在单场景失败后继续检查其余场景并保存 JSON；它仍以非零退出码明确报告失败。

@@ -23,7 +23,7 @@ Development split:
 ```bash
 python -m experiments.run_experiment \
   --name weak-bm25-dev \
-  --agent starter.agent:Agent \
+  --agent starter.baseline_agent:Agent \
   --dataset data/splits/dev.jsonl
 ```
 
@@ -32,7 +32,7 @@ Holdout split:
 ```bash
 python -m experiments.run_experiment \
   --name weak-bm25-holdout \
-  --agent starter.agent:Agent \
+  --agent starter.baseline_agent:Agent \
   --dataset data/splits/holdout.jsonl
 ```
 
@@ -68,4 +68,3 @@ python -m experiments.analyze_failures experiments/runs/<run>
 - Do not edit labels in `data/public_set.jsonl`.
 - Tune on `data/splits/dev.jsonl`; use holdout only for periodic checks.
 - Record every reported score with the dataset hash and Git commit stored in the run metadata.
-

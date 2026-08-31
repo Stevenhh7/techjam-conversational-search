@@ -27,6 +27,7 @@ class SolutionConfig:
     semantic_ranker_temperature: float = 0.0
     semantic_ranker_num_ctx: int = 8192
     semantic_ranker_num_predict: int = 1024
+    semantic_ranker_circuit_breaker_failures: int = 2
     over_generality_cutoff_enabled: bool = True
     over_generality_max_query_terms: int = 4
     over_generality_max_active_slots: int = 0
@@ -43,6 +44,19 @@ class SolutionConfig:
     dense_embeddings_path: Path = Path("artifacts/product_embeddings.npy")
     dense_metadata_path: Path = Path("artifacts/product_embeddings.meta.json")
     ask_until_turn: int = 7
+    context_max_messages: int = 4
+    context_max_candidates: int = 10
+    context_max_preferences: int = 16
+    context_max_summary_chars: int = 800
+    context_max_outcomes: int = 4
+    profile_promotion_sessions: int = 2
+    profile_confidence_decay: float = 0.98
+    orchestration_max_sparse_limit: int = 180
+    orchestration_max_dense_limit: int = 240
+    orchestration_low_candidate_threshold: int = 24
+    orchestration_max_semantic_top_n: int = 30
+    orchestration_novelty_penalty: float = 0.08
+    orchestration_max_diversity_strength: float = 0.12
     buying_weights: dict[str, float] = field(
         default_factory=lambda: {"bm25": 1.2, "category": 0.18, "metadata": 1.0}
     )

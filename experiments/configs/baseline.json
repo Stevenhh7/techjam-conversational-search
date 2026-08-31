@@ -1,8 +1,7 @@
 {
   "name": "weak-bm25-full",
-  "agent": "starter.agent:Agent",
+  "agent": "starter.baseline_agent:Agent",
   "catalog": "data/catalog.jsonl",
   "dataset": "data/public_set.jsonl",
-  "notes": "Unmodified official weak BM25 baseline on all 200 public sessions."
+  "notes": "Preserved official weak BM25 baseline on all 200 public sessions."
 }
-

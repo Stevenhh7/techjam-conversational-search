@@ -1,0 +1,8 @@
+{
+  "name": "qwen_hashing_dev",
+  "agent": "solution.ablations:OllamaQwenAgent",
+  "catalog": "data/catalog.jsonl",
+  "dataset": "data/splits/dev.jsonl",
+  "phase": "tuning",
+  "notes": "Explicit local Ollama qwen3.5:9b Top-30 semantic-ranker ablation paired against the frozen hashing dev baseline."
+}

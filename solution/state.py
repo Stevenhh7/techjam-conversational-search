@@ -123,9 +123,31 @@ def update_state(state: SessionState, message: str, turn: int) -> SessionState:
     elif expected_attribute == "category" and incoming:
         state.category = incoming[0].value
     if parsed.no_preference_attribute:
-        state.unavailable_attributes.add(parsed.no_preference_attribute)
+        attribute = parsed.no_preference_attribute
+        old_values = [
+            item.value for item in state.structured_constraints if item.attribute == attribute
+        ]
+        state.unavailable_attributes.add(attribute)
+        _remove_structured_attributes(state, {attribute})
+        _remove_legacy_attributes(state.hard_constraints, {attribute})
+        _remove_legacy_attributes(state.soft_preferences, {attribute})
+        if attribute == "budget":
+            state.budget_min = None
+            state.budget_max = None
+        if old_values:
+            record_slot_mutation(
+                state,
+                turn,
+                "remove",
+                attribute,
+                old_values,
+                (),
+                "no_preference_revocation",
+            )
 
     if parsed.override:
+        state.last_override_turn = turn
+        state.rejected_recommendations.clear()
         transition_state(state, "rewriting", turn, "intent_override_detected")
         state.intent = "buying"
         scope = override_scope(message, incoming, category_changed)

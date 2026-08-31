@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from solution.context.schemas import DistilledContext
+    from solution.orchestration import ContextProgram, StrategyOutcome
 
 
 @dataclass
@@ -128,4 +133,10 @@ class SessionState:
     last_processed_message: str | None = None
     pending_clarification: ClarificationDecision | None = None
     over_generality: OverGeneralityDecision | None = None
+    profile_id: str | None = None
+    distilled_context: DistilledContext | None = None
+    context_program: ContextProgram | None = None
+    strategy_outcomes: list[StrategyOutcome] = field(default_factory=list)
+    rejected_recommendations: list[str] = field(default_factory=list)
+    last_override_turn: int = 0
 

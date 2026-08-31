@@ -1,0 +1,84 @@
+{
+  "status": "completed",
+  "decision": "do_not_enable_by_default",
+  "decision_reasons": [
+    "hit_rate_at_10_did_not_improve",
+    "mttc_regressed",
+    "latency_not_acceptable",
+    "fallback_rate_too_high"
+  ],
+  "baseline_run": "experiments/runs/step12_hashing_dev",
+  "candidate_run": "experiments/runs/qwen_hashing_dev_full",
+  "agent": "solution.ablations:OllamaQwenAgent",
+  "model": "qwen3.5:9b",
+  "semantic_ranker_top_n": 30,
+  "sample_count": 150,
+  "dataset": "data/splits/dev.jsonl",
+  "dataset_sha256": "c8955cacd79bb2e2ed6b984979bca91f379fc699648c5bc2e3ac2efb37f8b22a",
+  "catalog": "data/catalog.jsonl",
+  "catalog_sha256": "da979b05a68af864cb0dcf9ee6a81c010c7e66a57978ad286c7a2e005fc69a67",
+  "git_commit": "cb15f6dbc3339ee8af6a98d7b44ca6b795d84dd3",
+  "baseline": {
+    "hit_rate_at_10": 0.913333,
+    "mrr": 0.597302,
+    "mttc": 4.406667,
+    "efficiency": 0.659333,
+    "recommended_technical_score": 0.767724,
+    "elapsed_seconds": 202.407226
+  },
+  "candidate": {
+    "hit_rate_at_10": 0.913333,
+    "mrr": 0.611868,
+    "mttc": 4.42,
+    "efficiency": 0.658,
+    "recommended_technical_score": 0.771827,
+    "elapsed_seconds": 4612.09494
+  },
+  "delta": {
+    "hit_rate_at_10": 0.0,
+    "mrr": 0.014566,
+    "mttc": 0.013333,
+    "efficiency": -0.001333,
+    "recommended_technical_score": 0.004103,
+    "elapsed_seconds": 4409.687714,
+    "elapsed_multiplier": 22.786222
+  },
+  "paired_sessions": {
+    "reciprocal_rank_improved": 8,
+    "reciprocal_rank_degraded": 2,
+    "reciprocal_rank_unchanged": 140,
+    "hit_gained": 0,
+    "hit_lost": 0,
+    "turn_faster": 1,
+    "turn_slower": 2,
+    "turn_unchanged": 147
+  },
+  "ollama": {
+    "request_count": 650,
+    "success_count": 554,
+    "fallback_count": 96,
+    "success_rate": 0.8523076923,
+    "fallback_rate": 0.1476923077,
+    "last_error": null,
+    "last_latency_ms": 8116.4901,
+    "estimated_incremental_seconds_per_request": 6.784135,
+    "reported_prompt_tokens": 1763233,
+    "reported_completion_tokens": 215302,
+    "reported_total_tokens": 1978535,
+    "reported_tokens_cover_successful_calls_only": true
+  },
+  "integrity": {
+    "same_dataset_sha256": true,
+    "same_catalog_sha256": true,
+    "same_git_commit": true,
+    "official_evaluator_modified": false,
+    "starter_agent_modified": false,
+    "holdout_or_final_executed": false,
+    "default_semantic_ranker_enabled": false
+  },
+  "observability_limitations": [
+    "per_request_error_categories_were_not_persisted",
+    "per_request_latency_series_was_not_persisted",
+    "strict_p50_and_p95_latency_are_unavailable_without_a_rerun"
+  ]
+}

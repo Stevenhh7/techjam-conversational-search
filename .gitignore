@@ -44,4 +44,8 @@ tests/test_organizer_pipeline.py
 # Python/editor caches.
 .pytest_cache/
 .venv/
+.vscode/
 /.docx_qa/
+
+# Unintegrated local design-source drop; the final frontend lives in demo/_assets/.
+/demo_assets/

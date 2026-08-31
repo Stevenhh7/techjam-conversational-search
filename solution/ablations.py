@@ -36,6 +36,14 @@ class CrossEncoderTop30Agent(Agent):
         super().__init__(catalog_path, config=config, diagnostics=diagnostics)
 
 
+class OllamaQwenAgent(Agent):
+    """Explicit opt-in Qwen3.5 ablation; the production Agent keeps LLM ranking off."""
+
+    def __init__(self, catalog_path: str | Path = "data/catalog.jsonl", diagnostics: bool = False) -> None:
+        config = SolutionConfig(semantic_ranker_enabled=True)
+        super().__init__(catalog_path, config=config, diagnostics=diagnostics)
+
+
 class StrictBgeAgent(Agent):
     """BGE ablation that refuses to masquerade as a fallback hashing/sparse run."""
 

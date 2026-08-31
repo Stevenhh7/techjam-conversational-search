@@ -5,6 +5,7 @@ import unittest
 from experiments.analyze_failures import analyze
 from experiments.compare_runs import compare
 from experiments.split_public_set import stratified_split
+from experiments.trace_failures import _aggregate_audit, _compliance_audit, _failure_reason
 
 
 class ExperimentFrameworkTests(unittest.TestCase):
@@ -45,7 +46,88 @@ class ExperimentFrameworkTests(unittest.TestCase):
         self.assertEqual(report["failure_count"], 1)
         self.assertEqual(report["hit_rank_distribution"], {"2": 1})
 
+    def test_trace_failure_reason_includes_category_as_a_recall_route(self) -> None:
+        turn = {
+            "override_applied": True,
+            "ranks": {
+                "bm25": None,
+                "category": 3,
+                "metadata": None,
+                "dense": None,
+                "sparse_fused": None,
+                "fused": None,
+                "final": None,
+            },
+        }
+        self.assertEqual(_failure_reason([turn]), "fusion_drop")
+
+    def test_trace_failure_reason_ignores_pre_override_ranks(self) -> None:
+        before_override = {
+            "override_applied": False,
+            "ranks": {
+                "bm25": 1,
+                "category": 1,
+                "metadata": 1,
+                "dense": 1,
+                "sparse_fused": 1,
+                "fused": 1,
+                "final": 1,
+            },
+        }
+        after_override = {
+            "override_applied": True,
+            "ranks": {
+                "bm25": None,
+                "category": None,
+                "metadata": None,
+                "dense": None,
+                "sparse_fused": None,
+                "fused": None,
+                "final": None,
+            },
+        }
+        self.assertEqual(
+            _failure_reason([before_override, after_override]),
+            "not_recalled",
+        )
+
+    def test_trace_aggregate_audit_counts_rank_buckets_and_questions(self) -> None:
+        sessions = [
+            {
+                "best_ranks": {stage: (12 if stage == "final" else None) for stage in (
+                    "bm25", "category", "metadata", "dense", "sparse_fused", "fused", "final"
+                )},
+                "first_recall_turn": {stage: (2 if stage == "final" else None) for stage in (
+                    "bm25", "category", "metadata", "dense", "sparse_fused", "fused", "final"
+                )},
+                "question_audit": {"asked_attributes": ["size", "color"], "duplicate_attributes": []},
+                "turns": [{
+                    "retrieval_cutoff": False,
+                    "semantic_ranker": {"applied": False},
+                    "applied_constraints": [],
+                    "relaxed_constraints": [],
+                }],
+            }
+        ]
+        audit = _aggregate_audit(sessions)
+        self.assertEqual(audit["final_rank_buckets"]["11-20"], 1)
+        self.assertEqual(audit["total_questions"], 2)
+        self.assertEqual(audit["semantic_ranker_applied_turns"], 0)
+
+    def test_trace_compliance_audit_validates_grounded_unique_ids(self) -> None:
+        sessions = [{
+            "target": "TARGET",
+            "turns": [{
+                "turn": 1,
+                "override_applied": True,
+                "recommendations": ["A", "B"],
+            }],
+        }]
+        audit = _compliance_audit(sessions, {"A", "B", "TARGET"}, "d", "d", "c", "c")
+        self.assertEqual(audit["unknown_recommendation_ids"], 0)
+        self.assertEqual(audit["duplicate_recommendation_ids"], 0)
+        self.assertTrue(audit["catalog_sha_unchanged"])
+
 
 if __name__ == "__main__":
     unittest.main()
-

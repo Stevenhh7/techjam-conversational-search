@@ -27,7 +27,18 @@ class BuiltQuery:
 def build_query(state: SessionState) -> BuiltQuery:
     category = normalize_text(state.category)
     constraints = normalize_text([state.hard_constraints, state.soft_preferences])
-    profile = normalize_text(state.user_profile)
+    long_term: list[str] = []
+    if state.distilled_context is not None:
+        conflicts = set(state.distilled_context.profile_conflict_attributes)
+        long_term = [
+            f"{item.attribute} {item.value}"
+            for item in state.distilled_context.long_term_preferences
+            if item.attribute not in conflicts
+        ]
+    supplied_profile = {
+        key: value for key, value in state.user_profile.items() if key != "profile_id"
+    }
+    profile = normalize_text([supplied_profile, long_term])
     base = " ".join(part for part in (category, constraints) if part)
     expansion_terms: list[str] = []
     for key, values in EXPANSIONS.items():
@@ -37,4 +48,3 @@ def build_query(state: SessionState) -> BuiltQuery:
     # Profile is a weak semantic signal; it is not allowed to overwhelm explicit requests.
     semantic = normalize_text([base, expansion_terms, profile[:240]])
     return BuiltQuery(lexical=lexical, semantic=semantic, category=category, profile=profile)
-

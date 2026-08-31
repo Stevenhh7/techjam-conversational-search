@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ContextCart · Adaptive Shopping Agent</title>
+<style>
+:root{--bg:#0b1220;--panel:#111a2e;--panel2:#0e1626;--line:#1e2b45;--text:#e8eefc;--muted:#8ba0c4;--cyan:#22d3ee;--green:#34d399;--amber:#fbbf24;--red:#f87171;--blue:#60a5fa;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:12px;padding:12px 22px;border-bottom:1px solid var(--line);background:#0d1526;flex-wrap:wrap}
+header h1{font-size:18px;letter-spacing:.3px} header h1 span{color:var(--cyan)}
+.badge{font-size:11px;border:1px solid var(--muted);color:var(--muted);padding:3px 10px;border-radius:999px;white-space:nowrap}
+.badge.on{border-color:var(--green);color:var(--green)}
+.badge.off{border-color:var(--red);color:var(--red)}
+.badge.warn{border-color:var(--amber);color:var(--amber)}
+.badge.idle{border-color:var(--muted);color:var(--muted)}
+.spacer{flex:1}
+.hdr-meta{font-size:12px;color:var(--muted)}
+.btn{background:#0e1a2e;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 14px;font-size:12.5px;cursor:pointer;font-weight:600}
+.btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn.primary{background:var(--cyan);color:#04131a;border-color:var(--cyan)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+nav.tabs{display:flex;gap:4px;padding:0 22px;border-bottom:1px solid var(--line);background:#0d1526}
+.tab{background:none;border:none;color:var(--muted);padding:12px 16px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent}
+.tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+main{flex:1;overflow:hidden;padding:16px 22px}
+.tab-panel{display:none;height:100%}
+.tab-panel.active{display:block}
+.chat-layout{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:16px;height:100%;min-height:0;overflow:hidden}
+.chat-col{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;overflow:hidden;position:relative}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.toolbar label{font-size:12px;color:var(--muted)}
+select,input[type=number]{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:inherit}
+select:focus,input:focus{outline:none;border-color:var(--cyan)}
+.sess-meta{font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5}
+.turn-chip{font-size:11px;border:1px solid var(--cyan);color:var(--cyan);padding:3px 10px;border-radius:999px;white-space:nowrap}
+.sess-meta b{color:var(--amber)}
+#chat{flex:1;overflow-y:auto;padding-right:10px;display:flex;flex-direction:column;gap:12px;min-height:0}
+.bubble{max-width:88%;padding:10px 14px;border-radius:12px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.bubble .who{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
+.bubble.user{background:#152238;border:1px solid #24406b;align-self:flex-end}
+.bubble.agent{background:#0d3a40;border:1px solid #1c5a63;align-self:flex-start}
+.bubble.agent .attr{display:inline-block;margin-left:8px;font-size:10.5px;color:var(--cyan);border:1px solid var(--cyan);border-radius:6px;padding:1px 8px;vertical-align:1px}
+.recs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.prod{display:flex;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12px;align-items:flex-start}
+.rank{font-weight:800;color:var(--cyan);min-width:24px;text-align:center;font-size:13px;padding-top:1px}
+.pbody{flex:1;min-width:0}
+.ptitle{color:var(--muted);line-height:1.35}
+.pcat{font-size:10.5px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pprice{font-size:11px;color:var(--amber);margin-top:2px;font-weight:600}
+.tgt-tag{display:inline-block;background:var(--green);color:#04130c;font-size:10px;font-weight:800;padding:1px 7px;border-radius:5px;margin-top:4px}
+.hit-banner{display:inline-block;background:var(--green);color:#04130c;font-weight:700;font-size:12.5px;padding:6px 14px;border-radius:8px;margin-top:8px}
+.input-row{display:flex;gap:10px;margin-top:12px;flex:0 0 auto;padding-top:12px;background:var(--bg);border-top:1px solid var(--line);position:sticky;bottom:0;z-index:5}
+#msg{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:12px 14px;font-size:13.5px;resize:none;height:56px;font-family:inherit}
+.fab{position:absolute;right:16px;bottom:92px;width:36px;height:36px;border-radius:50%;background:var(--cyan);color:#04131a;border:none;font-size:19px;font-weight:800;cursor:pointer;display:none;box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:10;line-height:1}
+.fab.show{display:block}
+.fab:hover{filter:brightness(1.1)}
+#msg:focus{outline:none;border-color:var(--cyan)}
+#send{background:var(--cyan);color:#04131a;border:none;border-radius:10px;padding:0 24px;font-weight:700;font-size:14px;cursor:pointer}
+#send:disabled{opacity:.5;cursor:not-allowed}
+.trace-col{overflow-y:auto;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.card h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:12px}
+.card h3 small{color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px}
+.muted{color:var(--muted)}
+.row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12.5px;gap:10px}
+.row:last-child{border-bottom:none}
+.row .k{color:var(--muted);white-space:nowrap}
+.row .v{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;word-break:break-word}
+.ok{color:var(--green)}.bad{color:var(--red)}.info{color:var(--cyan)}.warn{color:var(--amber)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--muted)}
+.chip.hl{border-color:var(--cyan);color:var(--cyan)}
+.chip.bad{border-color:var(--red);color:var(--red)}
+.chip.warn{border-color:var(--amber);color:var(--amber)}
+.bar{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-top:3px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#0891b2,#22d3ee);border-radius:6px}
+.reasons{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6;word-break:break-word}
+details{margin-top:8px}
+summary{cursor:pointer;font-size:11px;color:var(--muted)}
+pre.raw{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:10.5px;max-height:280px;overflow:auto;margin-top:8px;color:#9fd8e8;white-space:pre-wrap;word-break:break-word}
+.llm-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}
+.llm-dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+.llm-dot.off{background:var(--red)}
+.llm-dot.warn{background:var(--amber)}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:14px 0 18px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.7px}
+.kpi .big{font-size:30px;font-weight:800;margin-top:6px;font-variant-numeric:tabular-nums}
+.kpi .delta{font-size:11px;margin-top:5px}
+.two{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-bottom:18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.panel h3{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;text-transform:uppercase;font-size:10.5px;letter-spacing:.5px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.hl{color:var(--green);font-weight:700}
+.up{color:var(--green)}.down{color:var(--red)}
+.formula{background:var(--panel2);border:1px dashed var(--line);border-radius:8px;padding:10px 12px;font-family:Consolas,'Courier New',monospace;font-size:12px;color:var(--cyan);margin-top:12px}
+.formula span{color:var(--muted)}
+.note{color:var(--muted);font-size:12px;line-height:1.7;margin:4px 0 12px}
+.about{max-width:920px;overflow-y:auto;height:100%;padding-right:10px}
+.about h2{font-size:17px;margin:6px 0 10px;color:var(--cyan)}
+.about p,.about li{font-size:13px;line-height:1.7;color:var(--text)}
+.about ul,.about ol{margin:6px 0 14px 20px}
+.about li{color:var(--muted)}
+.about li b{color:var(--text)}
+.about code{color:var(--cyan);font-size:12px}
+.sect{margin-bottom:18px}
+#boot-overlay{position:fixed;inset:0;background:rgba(4,8,16,.94);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:100}
+#boot-overlay .spin{width:44px;height:44px;border:3px solid var(--line);border-top-color:var(--cyan);border-radius:50%;animation:sp 1s linear infinite}
+#boot-overlay .txt{color:var(--muted);font-size:14px}
+#boot-overlay .sub{color:var(--muted);font-size:12px;opacity:.7}
+@keyframes sp{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#123;border:1px solid var(--cyan);color:var(--text);padding:10px 18px;border-radius:10px;font-size:13px;display:none;z-index:200;max-width:70%}
+.err{color:var(--red)}
+</style>
+</head>
+<body>
+
+<div id="boot-overlay">
+  <div class="spin"></div>
+  <div class="txt">Building the 50K-product in-memory search index…</div>
+  <div class="sub">first boot can take 30–60 seconds · the page unlocks when the real Agent is ready</div>
+</div>
+
+<header>
+  <h1>ContextCart <span>· Adaptive Shopping Agent</span></h1>
+  <span class="badge idle" id="llm-chip">LLM —</span>
+  <button class="btn" id="llm-toggle" disabled>—</button>
+  <span class="spacer"></span>
+  <span class="hdr-meta" id="status-meta"></span>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="chat">1 · Live Inference</button>
+  <button class="tab" data-tab="dash">2 · Data Dashboard</button>
+  <button class="tab" data-tab="about">3 · Track 4 Map</button>
+</nav>
+
+<main>
+  <!-- ============ TAB 1: LIVE INFERENCE ============ -->
+  <section id="tab-chat" class="tab-panel active">
+    <div class="chat-layout">
+      <div class="chat-col">
+        <div class="toolbar">
+          <select id="profile-select" title="Choose a catalog-grounded demonstration scenario"></select>
+          <button class="btn" id="new-session">New session</button>
+          <span class="turn-chip" id="turn-counter">turn 0/10</span>
+          <span class="muted" style="font-size:11.5px">curated prompts only · no labels or target ASINs are read by the demo · keep typing to continue</span>
+        </div>
+        <div class="sess-meta" id="session-meta">no session</div>
+        <div id="chat"></div>
+        <button id="scroll-down" class="fab" title="Scroll to latest message">↓</button>
+        <div class="input-row">
+          <textarea id="msg" placeholder="Type the customer's next message, e.g. “I need a waterproof winter jacket under $80.”"></textarea>
+          <button id="send" disabled>Send</button>
+        </div>
+      </div>
+      <aside class="trace-col">
+        <div class="card">
+          <h3>Model prediction <small>· every decision of the last turn</small></h3>
+          <div id="prediction">
+            <p class="muted">Start a session and send a message to inspect the model's per-turn decisions: intent routing, slot state, retrieval routes and LLM semantic ranking.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ TAB 2: DATA DASHBOARD ============ -->
+  <section id="tab-dash" class="tab-panel">
+    <div class="toolbar">
+      <button class="btn primary" id="dash-run">Load verified dev150 evidence</button>
+      <span class="muted" id="dash-status"></span>
+    </div>
+    <p class="note">Loads tracked aggregate evidence with catalog and dataset SHA256 values. The live demo never reads labels and does not rerun frozen evaluation data on stage.</p>
+
+    <div id="dash-kpis" class="grid"></div>
+
+    <div class="two">
+      <div class="panel">
+        <h3>Metrics by scenario</h3>
+        <div id="dash-scenario"></div>
+      </div>
+      <div class="panel">
+        <h3>Default path &amp; Qwen deployment gate</h3>
+        <div id="dash-llm-summary"></div>
+        <div class="formula">TechnicalScore = 0.50·HR@10 + 0.30·MRR + 0.20·Efficiency <span>(Efficiency = clip((11−MTTC)/10, 0, 1))</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Evidence provenance and decision</h3>
+      <div id="dash-sessions"></div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 3: TRACK 4 MAP ============ -->
+  <section id="tab-about" class="tab-panel">
+    <div class="about">
+      <h2>How this demo maps to Track 4 · Shopping Copilot</h2>
+      <div class="sect">
+        <p>The challenge requires an intelligent conversational shopping agent over a frozen Amazon catalog with four pillars. This page exercises the <b>real pipeline</b> in the <code>solution/</code> package — no mock data.</p>
+      </div>
+      <div class="panel" style="margin-bottom:18px">
+        <h3>Pillar coverage</h3>
+        <table>
+          <tr><th>Pillar</th><th>Implemented in this demo</th></tr>
+          <tr><td><b>I. Intent Routing &amp; Hybrid Pipeline</b></td><td>Dual-track routing (Buying → precision filter track / Browsing → discovery track); multi-route retrieval BM25 + category + metadata (+ dense when the artifact is present) → LLM semantic re-ranking. Watch the “Model prediction” panel in the Live Inference tab.</td></tr>
+          <tr><td><b>II. Multi-Turn Scenario Evolution</b></td><td>Dynamic state machine: slot accumulation, intent override (slot erase/rewrite), proactive clarification on over-generality with retrieval cutoff. Send “Actually, ignore my earlier preference…” mid-session to see an override.</td></tr>
+          <tr><td><b>III. Self-Evolution (Context Programming)</b></td><td>Short-term session state + long-term user profile drive per-turn queries and ranking; runtime re-orchestration (provisional vs full pipeline, route weights, safe fallback).</td></tr>
+          <tr><td><b>IV. Evaluation Matrix</b></td><td>Hit Rate@10, MRR, MTTC, Efficiency and TechnicalScore are produced by the unmodified official evaluator. The dashboard displays tracked dev150 aggregate evidence instead of reading labels during the live demo.</td></tr>
+        </table>
+      </div>
+      <div class="panel" style="margin-bottom:18px">
+        <h3>LLM on / off / failure — how it is handled</h3>
+        <ul>
+          <li><b>LLM OFF</b> (default deterministic): the local-LLM ranker is replaced by a <code>DisabledSemanticRanker</code>; retrieval fusion + heuristic scoring order the Top-10. Fast and fully offline.</li>
+          <li><b>LLM ON</b>: each turn asks the local Ollama model (e.g. <code>qwen3.5:9b</code>) to re-rank only the top candidates with a JSON-schema-constrained permutation.</li>
+          <li><b>LLM failure</b> (Ollama down / timeout / malformed JSON): the ranker is <b>fail-open</b> — it falls back to the deterministic order, opens a circuit breaker so later turns stay fast, and reports <code>applied=false</code> + reason in the prediction panel (try it: turn the LLM on while Ollama is not running).</li>
+        </ul>
+      </div>
+      <div class="panel" style="margin-bottom:18px">
+        <h3>Submission deliverables checklist</h3>
+        <ol>
+          <li><b>Written project description (Devpost)</b> — architecture, libraries, models/APIs, datasets.</li>
+          <li><b>Public GitHub repo</b> — this repository: structured <code>solution/</code> code, <code>README.md</code>, reproducible evaluation.</li>
+          <li><b>Demo video</b> — record this page end-to-end. Suggested script: boot → open browsing cutoff → preference accumulation → intent override → verified metrics → measured Qwen gate.</li>
+          <li><b>Reproducibility</b> — setup &amp; run instructions in <code>README.md</code>.</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>Run this demo</h3>
+        <pre class="raw">python demo/app.py
+# open http://127.0.0.1:7860</pre>
+        <p class="muted" style="font-size:12px;margin-top:8px">The deterministic ranker is the default. Optional environment variables use the <code>CONTEXTCART_</code> prefix. The Agent and catalog stay read-only; this frontend only calls the local demo API.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const BASELINE = { hr: 0.125, mrr: 0.068034, mttc: 9.81 };
+
+let status = null;
+let session = null;
+
+function esc(value){
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmt(value, digits = 3){
+  if (value === null || value === undefined) return '—';
+  return Number(value).toFixed(digits);
+}
+let toastTimer = null;
+function toast(text){
+  const t = $('toast');
+  t.textContent = text;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3200);
+}
+
+async function api(path, method = 'GET', body = null){
+  const options = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== null) options.body = JSON.stringify(body);
+  const res = await fetch(path, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+/* ---------- boot & status ---------- */
+async function boot(){
+  try {
+    status = await api('/api/status');
+  } catch (e) {
+    setTimeout(boot, 2000);
+    return;
+  }
+  if (!status.ready) {
+    if (status.boot_error){
+      document.querySelector('#boot-overlay .spin').style.display = 'none';
+      document.querySelector('#boot-overlay .txt').textContent = 'Agent initialization failed';
+      document.querySelector('#boot-overlay .sub').textContent = status.boot_error;
+      document.querySelector('#boot-overlay .sub').classList.add('err');
+      return;
+    }
+    setTimeout(boot, 1200);
+    return;
+  }
+  $('boot-overlay').style.display = 'none';
+  const dense = status.dense || {};
+  $('status-meta').textContent =
+    `catalog ${status.catalog_size.toLocaleString()} · dense ${dense.enabled ? (dense.backend || 'ready') : 'safe fallback'} · local only`;
+  refreshLLM(status);
+  $('llm-toggle').disabled = false;
+  $('send').disabled = false;
+  await loadProfiles();
+  await newSession();
+}
+
+function refreshLLM(s){
+  const chip = $('llm-chip');
+  const llm = s.llm || {};
+  const on = Boolean(s.llm_enabled);
+  const btn = $('llm-toggle');
+  if (!on){
+    chip.className = 'badge off';
+    chip.textContent = 'LLM OFF · deterministic ranking';
+    btn.textContent = 'Turn LLM ON';
+  } else if (llm.circuit_open){
+    chip.className = 'badge warn';
+    chip.textContent = 'LLM fallback · circuit open';
+    btn.textContent = 'Turn LLM OFF';
+  } else {
+    chip.className = 'badge on';
+    chip.textContent = 'LLM ON · ' + (llm.backend || 'ollama');
+    btn.textContent = 'Turn LLM OFF';
+  }
+}
+
+$('llm-toggle').addEventListener('click', async () => {
+  try {
+    status = await api('/api/llm', 'POST', { enabled: !status.llm_enabled });
+    refreshLLM(status);
+    toast(status.llm_enabled
+      ? 'LLM semantic re-ranking enabled — first call may take a while if the model is cold.'
+      : 'LLM disabled — deterministic ranking only.');
+  } catch (e) { toast('toggle failed: ' + e.message); }
+});
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    $('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+/* ---------- chat / inference ---------- */
+async function loadProfiles(){
+  const { scenarios } = await api('/api/scenarios');
+  const sel = $('profile-select');
+  sel.innerHTML = '';
+  scenarios.forEach(p => {
+    const o = document.createElement('option');
+    o.value = JSON.stringify(p);
+    o.textContent = p.label || `${p.sample_id} · ${p.scenario_type}`;
+    sel.appendChild(o);
+  });
+}
+
+function addBubble(who, html, attr){
+  const chat = $('chat');
+  const div = document.createElement('div');
+  div.className = 'bubble ' + who;
+  div.innerHTML = `<div class="who">${who === 'user' ? 'Customer' : 'Agent'}</div>${html}`;
+  if (attr){
+    const chip = document.createElement('span');
+    chip.className = 'attr';
+    chip.textContent = 'asks ' + attr;
+    div.querySelector('.who').appendChild(chip);
+  }
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+async function newSession(){
+  let scenario = null;
+  try { scenario = JSON.parse($('profile-select').value); } catch (e) {}
+  session = await api('/api/reset', 'POST', { scenario });
+  $('turn-counter').textContent = 'turn 0/10';
+  $('chat').innerHTML = '';
+  addBubble('agent',
+    `Hi! I'm the ContextCart shopping agent. Scenario: <b>${esc(session.scenario_type || 'free chat')}</b>.<br>` +
+    `The suggested first message is prefilled below. Recommendations always come from the read-only 50K catalog.`);
+  $('msg').value = session.first_message || '';
+  $('msg').focus();
+  $('send').disabled = false;
+  renderSessionMeta();
+  $('prediction').innerHTML = '<p class="muted">Send a message to inspect the model\'s per-turn decisions.</p>';
+}
+
+function renderSessionMeta(){
+  if (!session) { $('session-meta').textContent = 'no session'; return; }
+  $('session-meta').innerHTML =
+    `session <b>${esc(session.session_id)}</b> · scenario <b>${esc(session.scenario_type || '—')}</b> · ` +
+    `<span class="ok">catalog-grounded · labels not loaded</span>`;
+}
+
+function renderRecs(recs){
+  if (!recs || !recs.length) return '<p class="muted">No recommendations this turn.</p>';
+  return '<div class="recs">' + recs.map((p, i) => {
+    const cat = (p.categories || []).join(' · ');
+    const price = (p.price !== null && p.price !== undefined) ? `$${esc(p.price)}` : '';
+    const rating = (p.rating !== null && p.rating !== undefined) ? `★ ${esc(p.rating)}` : '';
+    return `<div class="prod">
+      <div class="rank">#${i + 1}</div>
+      <div class="pbody">
+        <div class="ptitle">${esc(p.title)}</div>
+        ${cat ? `<div class="pcat">${esc(cat)}</div>` : ''}
+        ${(price || rating) ? `<div class="pprice">${price}${price && rating ? ' · ' : ''}${rating}</div>` : ''}
+        <div class="pcat">${esc(p.parent_asin)}</div>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+async function send(){
+  const msg = $('msg').value.trim();
+  if (!msg || !session) return;
+  $('send').disabled = true;
+  addBubble('user', esc(msg));
+  $('msg').value = '';
+  let completedTurn = 0;
+  try {
+    const r = await api('/api/respond', 'POST', { session_id: session.session_id, message: msg });
+    completedTurn = r.turn;
+    session = r.session;
+    $('turn-counter').textContent = 'turn ' + r.turn + '/10';
+    $('msg').placeholder = 'Continue the conversation — type the customer\'s next reply…';
+    renderSessionMeta();
+    let html = esc(r.message);
+    if (r.ask_attribute) html += `<span class="attr">asks ${esc(r.ask_attribute)}</span>`;
+    const bubble = addBubble('agent', html);
+    bubble.innerHTML += renderRecs(r.recommendations);
+    renderPrediction(r);
+    if (r.prediction && r.prediction.llm) refreshLLMFromTurn(r.prediction.llm);
+  } catch (e) {
+    addBubble('agent', '<span class="err">Error: ' + esc(e.message) + '</span>');
+  }
+  $('send').disabled = completedTurn >= 10;
+  if (completedTurn >= 10) $('msg').placeholder = '10-turn competition limit reached — start a new session.';
+  else $('msg').focus();
+  $('chat').scrollTop = $('chat').scrollHeight;
+}
+
+function refreshLLMFromTurn(llm){
+  if (status) status.llm_enabled = Boolean(llm.enabled);
+  const chip = $('llm-chip');
+  if (!llm.enabled){
+    chip.className = 'badge off';
+    chip.textContent = 'LLM OFF · deterministic ranking';
+    $('llm-toggle').textContent = 'Turn LLM ON';
+  } else if (llm.applied){
+    chip.className = 'badge on';
+    chip.textContent = 'LLM ON · rerank applied';
+    $('llm-toggle').textContent = 'Turn LLM OFF';
+  } else if (llm.circuit_open || (llm.attempted && !llm.succeeded)){
+    chip.className = 'badge warn';
+    chip.textContent = 'LLM fallback · ' + (llm.last_error || llm.reason || 'failed');
+    $('llm-toggle').textContent = 'Turn LLM OFF';
+  } else {
+    chip.className = 'badge on';
+    chip.textContent = 'LLM ON · no rerank this turn';
+    $('llm-toggle').textContent = 'Turn LLM OFF';
+  }
+}
+/* ---------- prediction trace ---------- */
+function intentChip(p){
+  const buying = p.intent === 'buying' || (p.buying_probability ?? 0.5) >= 0.5;
+  const label = buying ? `Buying · ${fmt(p.buying_probability, 2)}` : `Browsing · ${fmt(1 - (p.buying_probability ?? 0.5), 2)}`;
+  const cls = buying ? 'chip hl' : 'chip';
+  const track = p.routing && p.routing.track ? `track: ${esc(p.routing.track)}` : '';
+  return `<span class="${cls}">${esc(label)}</span>` + (track ? `<span class="chip">${esc(track)}</span>` : '');
+}
+
+function renderPrediction(r){
+  const p = r.prediction || {};
+  const root = $('prediction');
+  if (!p.intent){
+    root.innerHTML = '<p class="muted">No prediction available for this turn.</p>';
+    return;
+  }
+  const llm = p.llm || {};
+  const routing = p.routing || {};
+  const st = p.state || {};
+  const context = p.distilled_context || {};
+  const program = p.context_program || {};
+  const prob = p.buying_probability ?? 0.5;
+  const probBar = `<div class="bar"><i style="width:${Math.round(prob * 100)}%"></i></div>`;
+  const slots = Object.entries(st.slots || {}).map(([k, v]) =>
+    `<span class="chip hl">${esc(k)}: ${esc((v || []).join(', '))}</span>`).join('');
+  const routes = Object.entries(p.routes || {}).map(([name, count]) =>
+    `<span class="chip">${esc(name)} · ${count}</span>`).join('');
+  let llmBadge;
+  if (!llm.enabled){
+    llmBadge = '<span class="llm-dot off"></span><span class="bad">LLM disabled</span>';
+  } else if (llm.applied){
+    llmBadge = '<span class="llm-dot on"></span><span class="ok">LLM rerank applied</span>';
+  } else {
+    llmBadge = '<span class="llm-dot warn"></span><span class="warn">fallback: ' +
+      esc(llm.reason || llm.last_error || 'no rerank') + '</span>';
+  }
+  let html = `
+    <div class="row"><span class="k">Intent</span><span class="v">${intentChip(p)}</span></div>
+    <div class="row"><span class="k">Buying probability</span><span class="v">${fmt(prob, 3)}</span></div>
+    <div style="margin:6px 0 10px">${probBar}</div>`;
+  if (routing.reasons && routing.reasons.length){
+    html += `<div class="reasons">routing reasons: ${esc(routing.reasons.join(' · '))}</div>`;
+  }
+  html += `<div class="row"><span class="k">Dialogue phase</span><span class="v">${esc(st.dialogue_phase || '—')} · rev ${esc(st.state_revision ?? '—')}</span></div>`;
+  if (st.hard_constraints && st.hard_constraints.length){
+    html += `<div class="row"><span class="k">Hard constraints</span><span class="v">${esc(st.hard_constraints.join('; '))}</span></div>`;
+  }
+  if (st.soft_preferences && st.soft_preferences.length){
+    html += `<div class="row"><span class="k">Soft preferences</span><span class="v">${esc(st.soft_preferences.join('; '))}</span></div>`;
+  }
+  if (st.exclusions && st.exclusions.length){
+    html += `<div class="row"><span class="k">Exclusions</span><span class="v">${esc(st.exclusions.join('; '))}</span></div>`;
+  }
+  if (slots) html += `<div class="chips">${slots}</div>`;
+  html += `<div class="row"><span class="k">Retrieval routes</span><span class="v">${routes || '—'}</span></div>`;
+  if (p.probe && p.probe.unique_candidate_count != null){
+    html += `<div class="row"><span class="k">Unique candidates</span><span class="v">${p.probe.unique_candidate_count}</span></div>`;
+  }
+  if (p.over_generality && p.over_generality.overloaded){
+    html += `<div class="chips"><span class="chip warn">⚠ over-generality — retrieval cut off, proactive clarification</span></div>`;
+  }
+  if (p.retrieval_cutoff){
+    html += '<div class="row"><span class="k">Retrieval cutoff</span><span class="v info">yes (provisional top-10)</span></div>';
+  }
+  if (p.constraints && (p.constraints.applied.length || p.constraints.relaxed.length)){
+    html += `<div class="row"><span class="k">Constraints</span><span class="v">${esc((p.constraints.applied || []).join(', '))}</span></div>`;
+  }
+  if (p.clarification && p.clarification.attribute){
+    html += `<div class="row"><span class="k">Clarification</span><span class="v">${esc(p.clarification.attribute)} · ${esc(p.clarification.reason)}</span></div>`;
+  }
+  if (context.summary){
+    html += `<div class="row"><span class="k">Distilled context</span><span class="v">${esc(context.summary)}</span></div>`;
+  }
+  if (program.active_routes && program.active_routes.length){
+    html += `<div class="row"><span class="k">Context Program</span><span class="v">${esc(program.active_routes.join(' + '))} · ${esc(program.clarification_mode || '—')}</span></div>`;
+  }
+  if (program.reasons && program.reasons.length){
+    html += `<div class="reasons">program reasons: ${esc(program.reasons.join(' · '))}</div>`;
+  }
+  html += `<div class="row"><span class="k">LLM call</span><span class="v">${llmBadge}</span></div>`;
+  if (llm.last_latency_ms != null){
+    html += `<div class="row"><span class="k">LLM latency</span><span class="v">${fmt(llm.last_latency_ms, 0)} ms</span></div>`;
+  }
+  if (llm.attempted || llm.request_count > 0){
+    html += `<div class="row"><span class="k">LLM stats</span><span class="v">${llm.request_count ?? 0} req · ${llm.success_count ?? 0} ok</span></div>`;
+  }
+  html += `<div class="row"><span class="k">Fused → Final</span><span class="v">${p.fused_count ?? '—'} → ${p.final_count ?? '—'}</span></div>`;
+  html += `<details><summary>raw trace JSON</summary><pre class="raw">${esc(JSON.stringify(p, null, 2))}</pre></details>`;
+  root.innerHTML = html;
+}
+
+/* ---------- dashboard ---------- */
+function kpiCard(label, value, delta){
+  return `<div class="kpi"><div class="label">${label}</div><div class="big">${value}</div>${delta ? `<div class="delta">${delta}</div>` : ''}</div>`;
+}
+
+function renderDashboard(d){
+  const m = d.metrics;
+  const base = BASELINE;
+  const dHr = m.hit_rate_at_10 - base.hr;
+  const dMrr = m.mrr - base.mrr;
+  const dMttc = base.mttc - m.mttc;
+  $('dash-kpis').innerHTML = [
+    kpiCard('Hit Rate @10', fmt(m.hit_rate_at_10, 3), `<span class="${dHr >= 0 ? 'up' : 'down'}">${dHr >= 0 ? '▲' : '▼'} ${fmt(Math.abs(dHr), 3)} vs starter</span>`),
+    kpiCard('MRR', fmt(m.mrr, 3), `<span class="${dMrr >= 0 ? 'up' : 'down'}">${dMrr >= 0 ? '▲' : '▼'} ${fmt(Math.abs(dMrr), 3)} vs starter</span>`),
+    kpiCard('MTTC (↓ better)', fmt(m.mttc, 2), `<span class="${dMttc >= 0 ? 'up' : 'down'}">${dMttc >= 0 ? '▼' : '▲'} ${fmt(Math.abs(dMttc), 2)} turns</span>`),
+    kpiCard('Efficiency', fmt(m.efficiency, 3), ''),
+    kpiCard('Technical Score', fmt(m.technical_score, 3), ''),
+  ].join('');
+
+  const scenarios = d.scenario_metrics || {};
+  $('dash-scenario').innerHTML = `<table><tr><th>Scenario</th><th class="num">n</th><th class="num">HR@10</th><th class="num">MRR</th><th class="num">MTTC</th></tr>
+    ${Object.keys(scenarios).map(name => {
+      const s = scenarios[name];
+      return `<tr><td>${esc(name)}</td><td class="num">${s.sample_count}</td><td class="num hl">${fmt(s.hit_rate_at_10, 3)}</td><td class="num">${fmt(s.mrr, 3)}</td><td class="num">${fmt(s.mttc, 2)}</td></tr>`;
+    }).join('')}
+    <tr><td style="color:var(--muted)">weak BM25 starter (reference)</td><td class="num">200</td><td class="num">${base.hr.toFixed(3)}</td><td class="num">${base.mrr.toFixed(3)}</td><td class="num">${base.mttc.toFixed(2)}</td></tr>
+  </table>`;
+
+  const q = d.qwen || {};
+  const qc = q.candidate || {};
+  const qo = q.ollama || {};
+  const qd = q.delta || {};
+  $('dash-llm-summary').innerHTML = `
+    <div class="row"><span class="k">Default semantic ranker</span><span class="v ok">OFF · deterministic</span></div>
+    <div class="row"><span class="k">Qwen deployment decision</span><span class="v warn">${esc(q.decision || 'not available')}</span></div>
+    <div class="row"><span class="k">Qwen HR@10 / MRR / MTTC</span><span class="v">${fmt(qc.hit_rate_at_10, 3)} / ${fmt(qc.mrr, 3)} / ${fmt(qc.mttc, 2)}</span></div>
+    <div class="row"><span class="k">Fallback rate</span><span class="v">${fmt((qo.fallback_rate || 0) * 100, 2)}%</span></div>
+    <div class="row"><span class="k">P95 latency</span><span class="v">${fmt(qo.p95_latency_ms, 0)} ms</span></div>
+    <div class="row"><span class="k">Elapsed multiplier</span><span class="v">${fmt(qd.elapsed_multiplier, 2)}×</span></div>`;
+
+  $('dash-sessions').innerHTML = `
+    <div class="row"><span class="k">Evidence source</span><span class="v">${esc(d.source)}</span></div>
+    <div class="row"><span class="k">Development sessions</span><span class="v">${esc(d.sample_count)}</span></div>
+    <div class="row"><span class="k">Catalog SHA256</span><span class="v">${esc(d.catalog_sha256)}</span></div>
+    <div class="row"><span class="k">Dataset SHA256</span><span class="v">${esc(d.dataset_sha256)}</span></div>
+    <div class="row"><span class="k">Default run duration</span><span class="v">${fmt(d.duration_s, 2)} s</span></div>
+    <p class="note" style="margin-top:10px">The dashboard reads tracked aggregate summaries only. It does not expose target ASINs, rerun holdout/public labels, or tune weights.</p>`;
+}
+
+$('dash-run').addEventListener('click', async () => {
+  const btn = $('dash-run');
+  btn.disabled = true;
+  $('dash-status').textContent = 'loading tracked evidence…';
+  try {
+    const d = await api('/api/evidence');
+    renderDashboard(d);
+    $('dash-status').textContent = 'verified aggregate evidence loaded · no evaluation labels read';
+  } catch (e) {
+    $('dash-status').textContent = 'error: ' + e.message;
+  }
+  btn.disabled = false;
+});
+
+/* ---------- input handlers ---------- */
+$('new-session').addEventListener('click', async () => {
+  try { await newSession(); } catch (e) { toast('reset failed: ' + e.message); }
+});
+$('send').addEventListener('click', send);
+$('msg').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+});
+const chatEl = $('chat');
+function updateScrollFab(){
+  const nearBottom = chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 80;
+  $('scroll-down').classList.toggle('show', !nearBottom);
+}
+chatEl.addEventListener('scroll', updateScrollFab, { passive: true });
+$('scroll-down').addEventListener('click', () => {
+  chatEl.scrollTo({ top: chatEl.scrollHeight, behavior: 'smooth' });
+});
+/* keep the chat scrolled to the latest message after each turn */
+chatEl.scrollTop = chatEl.scrollHeight;
+new MutationObserver(() => { chatEl.scrollTop = chatEl.scrollHeight; })
+  .observe(chatEl, { childList: true, subtree: true });
+
+boot();
+</script>
+</body>
+</html>

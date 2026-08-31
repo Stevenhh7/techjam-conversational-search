@@ -2,7 +2,7 @@
 
 Run date: 2026-08-30 (Asia/Shanghai)  
 Branch: `project4-experiment-framework`  
-Agent: unmodified `starter.agent:Agent`  
+Agent: preserved weak baseline `starter.baseline_agent:Agent`
 Official evaluator: unmodified; worktree SHA256 matches `HEAD`
 
 ## Catalog integrity
@@ -54,4 +54,3 @@ python -m unittest discover -s tests -v
 ```
 
 See `experiments/README.md` for dev/holdout runs, comparisons, and failure reports.
-

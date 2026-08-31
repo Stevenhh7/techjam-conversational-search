@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections import Counter, deque
 from collections.abc import Callable
 from typing import Any
 from urllib.request import Request, urlopen
@@ -62,6 +63,10 @@ class OllamaQwenSemanticRanker:
         self.success_count = 0
         self.last_error: str | None = None
         self.last_latency_ms: float | None = None
+        self.error_counts: Counter[str] = Counter()
+        self.latencies_ms: deque[float] = deque(maxlen=2048)
+        self.total_prompt_tokens = 0
+        self.total_completion_tokens = 0
 
     @staticmethod
     def _candidate_payload(request: SemanticRankRequest) -> list[dict[str, Any]]:
@@ -169,16 +174,21 @@ class OllamaQwenSemanticRanker:
                 or not all(isinstance(value, str) for value in ordered)
             ):
                 self.last_error = "invalid_candidate_permutation"
+                self.error_counts[self.last_error] += 1
                 return self._fallback(request, "ollama_qwen_invalid_candidate_permutation")
 
             self.success_count += 1
             self.last_error = None
+            prompt_tokens = max(0, int(response.get("prompt_eval_count", 0)))
+            completion_tokens = max(0, int(response.get("eval_count", 0)))
+            self.total_prompt_tokens += prompt_tokens
+            self.total_completion_tokens += completion_tokens
             return SemanticRankResult(
                 ordered_parent_asins=ordered,
                 applied=True,
                 reason="ollama_qwen3_5_semantic_ranking",
-                prompt_tokens=max(0, int(response.get("prompt_eval_count", 0))),
-                completion_tokens=max(0, int(response.get("eval_count", 0))),
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
                 metadata={
                     "model": str(response.get("model", self.model_name)),
                     "done_reason": str(response.get("done_reason", "")),
@@ -188,11 +198,20 @@ class OllamaQwenSemanticRanker:
             )
         except Exception as exc:
             self.last_error = type(exc).__name__
+            self.error_counts[self.last_error] += 1
             return self._fallback(request, f"ollama_qwen_unavailable:{type(exc).__name__}")
         finally:
             self.last_latency_ms = (time.perf_counter() - started) * 1000.0
+            self.latencies_ms.append(self.last_latency_ms)
 
     def status(self) -> dict[str, object]:
+        ordered = sorted(self.latencies_ms)
+        percentile = lambda ratio: (
+            ordered[min(len(ordered) - 1, max(0, round((len(ordered) - 1) * ratio)))]
+            if ordered
+            else None
+        )
+        fallback_count = self.request_count - self.success_count
         return {
             "enabled": True,
             "backend": "ollama",
@@ -204,8 +223,19 @@ class OllamaQwenSemanticRanker:
             "think": False,
             "request_count": self.request_count,
             "success_count": self.success_count,
+            "fallback_count": fallback_count,
+            "success_rate": self.success_count / self.request_count if self.request_count else None,
+            "fallback_rate": fallback_count / self.request_count if self.request_count else None,
             "last_error": self.last_error,
             "last_latency_ms": self.last_latency_ms,
+            "mean_latency_ms": (
+                sum(self.latencies_ms) / len(self.latencies_ms) if self.latencies_ms else None
+            ),
+            "p50_latency_ms": percentile(0.50),
+            "p95_latency_ms": percentile(0.95),
+            "error_counts": dict(sorted(self.error_counts.items())),
+            "total_prompt_tokens": self.total_prompt_tokens,
+            "total_completion_tokens": self.total_completion_tokens,
         }
 
     def close(self) -> None:

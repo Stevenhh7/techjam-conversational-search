@@ -111,6 +111,8 @@ class HybridPipeline:
         state: SessionState,
         decision: RoutingDecision,
         probe: ProbeResult | None = None,
+        reranker_weights: dict[str, float] | None = None,
+        diversity_strength: float | None = None,
     ) -> PipelineResult:
         probe = probe or self.probe(query, decision)
         routes = {
@@ -149,7 +151,13 @@ class HybridPipeline:
                 state,
                 self.config.buying_min_filtered_candidates,
             )
-        ranked = rerank(filtered, self.products, query, state, self.config.reranker_weights)
+        ranked = rerank(
+            filtered,
+            self.products,
+            query,
+            state,
+            reranker_weights or self.config.reranker_weights,
+        )
         diversity_applied = bool(
             decision.diversity_enabled and is_open_category(state.category)
         )
@@ -157,7 +165,9 @@ class HybridPipeline:
             ranked = diversify_categories(
                 ranked,
                 self.products,
-                self.config.browsing_diversity_strength,
+                self.config.browsing_diversity_strength
+                if diversity_strength is None
+                else diversity_strength,
             )
         return PipelineResult(
             routes=routes,
@@ -175,6 +185,8 @@ class HybridPipeline:
         state: SessionState,
         decision: RoutingDecision,
         probe: ProbeResult,
+        reranker_weights: dict[str, float] | None = None,
+        diversity_strength: float | None = None,
     ) -> PipelineResult:
         fused = list(probe.sparse_fused)
         ranked = rerank(
@@ -182,7 +194,7 @@ class HybridPipeline:
             self.products,
             query,
             state,
-            self.config.reranker_weights,
+            reranker_weights or self.config.reranker_weights,
         )
         diversity_applied = bool(
             decision.diversity_enabled and is_open_category(state.category)
@@ -191,7 +203,9 @@ class HybridPipeline:
             ranked = diversify_categories(
                 ranked,
                 self.products,
-                self.config.browsing_diversity_strength,
+                self.config.browsing_diversity_strength
+                if diversity_strength is None
+                else diversity_strength,
             )
         return PipelineResult(
             routes={**probe.routes, "dense": []},
